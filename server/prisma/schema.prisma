@@ -8,10 +8,181 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum SessionStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+enum TurnRole {
+  SYSTEM
+  USER
+  ASSISTANT
+  EVALUATOR
+}
+
+enum QuestionDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum EvalStatus {
+  PENDING
+  RUNNING
+  PASSED
+  FAILED
+  ERROR
+}
+
+enum UsageProvider {
+  GEMINI
+  GROQ
+  OPENAI
+  OTHER
+}
+
 model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  name         String?
+  sessions     Session[]
+  questionBank QuestionBank[]
+  evalRuns     EvalRun[]
+  usageLogs    UsageLog[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model Session {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String?
+  status        SessionStatus @default(ACTIVE)
+  targetRole    String?
+  targetCompany String?
+  metadata      Json?
+  turns         Turn[]
+  topicStats    TopicStats[]
+  evalRuns      EvalRun[]
+  usageLogs     UsageLog[]
+  startedAt     DateTime      @default(now())
+  endedAt       DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Turn {
   id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      TurnRole
+  content   String
+  metadata  Json?
+  position  Int
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+
+  @@unique([sessionId, position])
+  @@index([sessionId])
+}
+
+model TopicStats {
+  id              String    @id @default(cuid())
+  sessionId       String
+  session         Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  topic           String
+  attempts        Int       @default(0)
+  correct         Int       @default(0)
+  score           Float?
+  durationSeconds Int       @default(0)
+  lastSeenAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([sessionId, topic])
+  @@index([topic])
+}
+
+model QuestionBank {
+  id          String              @id @default(cuid())
+  createdById String?
+  createdBy   User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  topic       String
+  difficulty  QuestionDifficulty  @default(MEDIUM)
+  prompt      String
+  idealAnswer String?
+  source      String?
+  tags        String[]            @default([])
+  metadata    Json?
+  embeddings  QuestionEmbedding[]
+  evalRuns    EvalRun[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([topic])
+  @@index([difficulty])
+}
+
+model QuestionEmbedding {
+  id         String                @id @default(cuid())
+  questionId String
+  question   QuestionBank          @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  provider   UsageProvider
+  model      String
+  dimensions Int
+  embedding  Unsupported("vector")
+  createdAt  DateTime              @default(now())
+
+  @@unique([questionId, provider, model])
+  @@index([questionId])
+}
+
+model EvalRun {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId    String?
+  session      Session?      @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  questionId   String?
+  question     QuestionBank? @relation(fields: [questionId], references: [id], onDelete: SetNull)
+  provider     UsageProvider
+  model        String
+  status       EvalStatus    @default(PENDING)
+  score        Float?
+  feedback     Json?
+  errorMessage String?
+  startedAt    DateTime      @default(now())
+  completedAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([questionId])
+  @@index([status])
+}
+
+model UsageLog {
+  id               String        @id @default(cuid())
+  userId           String?
+  user             User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sessionId        String?
+  session          Session?      @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  provider         UsageProvider
+  model            String
+  operation        String
+  promptTokens     Int           @default(0)
+  completionTokens Int           @default(0)
+  totalTokens      Int           @default(0)
+  costUsd          Decimal?      @db.Decimal(12, 6)
+  metadata         Json?
+  createdAt        DateTime      @default(now())
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([provider])
 }
