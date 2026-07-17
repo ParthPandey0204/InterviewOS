@@ -1,9 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
+import { config } from "../config.js";
 
 export class HttpError extends Error {
   constructor(
     public statusCode: number,
-    message: string
+    message: string,
+    public details?: unknown
   ) {
     super(message);
   }
@@ -34,14 +36,17 @@ export const errorHandler = (
   void _next;
 
   const statusCode = error instanceof HttpError ? error.statusCode : 500;
+  const exposeDetails = config.nodeEnv !== "production";
 
-  if (statusCode === 500 && process.env.NODE_ENV !== "production") {
+  if (statusCode === 500 && exposeDetails) {
     console.error(error);
   }
 
   response.status(statusCode).json({
     error: {
-      message: statusCode === 500 ? "Internal server error" : error.message
+      message: statusCode === 500 ? "Internal server error" : error.message,
+      ...(error instanceof HttpError && error.details ? { details: error.details } : {}),
+      ...(statusCode === 500 && exposeDetails ? { details: error.message } : {})
     }
   });
 };

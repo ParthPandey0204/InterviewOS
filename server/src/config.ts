@@ -10,9 +10,23 @@ const requiredSecret = (name: string, fallback: string) => {
   return value;
 };
 
+const parseOrigins = (value: string) => {
+  return value
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+};
+
 export const config = {
+  nodeEnv: process.env.NODE_ENV ?? "development",
   port: Number(process.env.PORT ?? 4000),
   clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173",
+  corsOrigins: parseOrigins(
+    process.env.CORS_ORIGINS ??
+      process.env.CLIENT_ORIGIN ??
+      "http://localhost:5173"
+  ),
+  requestLogFormat: process.env.REQUEST_LOG_FORMAT ?? "dev",
   jwt: {
     accessSecret: requiredSecret(
       "JWT_ACCESS_SECRET",
