@@ -5,11 +5,13 @@ type HealthResponse = {
   service: string;
 };
 
+const apiUrl = import.meta.env.VITE_API_URL ?? "";
+
 export function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
 
   useEffect(() => {
-    fetch("/api/health")
+    fetch(`${apiUrl}/api/health`)
       .then((response) => response.json())
       .then(setHealth)
       .catch(() => setHealth({ ok: false, service: "server unavailable" }));
