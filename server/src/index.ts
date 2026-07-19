@@ -5,6 +5,7 @@ import { errorHandler, notFoundHandler } from "./middleware/error.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { requestLogger } from "./middleware/logging.js";
 import { authRouter } from "./routes/auth.routes.js";
+import { sessionRouter } from "./routes/session.routes.js";
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.get("/api/health", (_request, response) => {
 });
 
 app.use("/api/auth", authRouter);
+app.use("/api/sessions", sessionRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 

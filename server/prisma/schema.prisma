@@ -70,11 +70,13 @@ model RefreshToken {
 }
 
 model Session {
-  id            String        @id @default(cuid())
+  id            String             @id @default(cuid())
   userId        String
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   title         String?
-  status        SessionStatus @default(ACTIVE)
+  mode          String
+  difficulty    QuestionDifficulty
+  status        SessionStatus      @default(ACTIVE)
   targetRole    String?
   targetCompany String?
   metadata      Json?
@@ -82,10 +84,10 @@ model Session {
   topicStats    TopicStats[]
   evalRuns      EvalRun[]
   usageLogs     UsageLog[]
-  startedAt     DateTime      @default(now())
+  startedAt     DateTime           @default(now())
   endedAt       DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
   @@index([userId])
   @@index([status])

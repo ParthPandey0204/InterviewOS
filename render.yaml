@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: npm install && npm run prisma:generate --workspace server && npm run build --workspace server
+    buildCommand: npm install --include=dev && npm run prisma:generate --workspace server && npm run build --workspace server
     startCommand: npm run start --workspace server
     healthCheckPath: /api/health
     envVars:
