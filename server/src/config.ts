@@ -38,5 +38,15 @@ export const config = {
     ),
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? "15m",
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? "7d"
+  },
+  llm: {
+    gemini: {
+      apiKey: process.env.GEMINI_API_KEY ?? "",
+      model: process.env.GEMINI_MODEL ?? "gemini-1.5-flash"
+    },
+    groq: {
+      apiKey: process.env.GROQ_API_KEY ?? "",
+      model: process.env.GROQ_MODEL ?? "llama-3.1-8b-instant"
+    }
   }
 };
