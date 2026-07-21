@@ -40,6 +40,7 @@ export const config = {
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? "7d"
   },
   llm: {
+    defaultProvider: process.env.LLM_PROVIDER ?? "gemini",
     gemini: {
       apiKey: process.env.GEMINI_API_KEY ?? "",
       model: process.env.GEMINI_MODEL ?? "gemini-1.5-flash"
@@ -50,3 +51,4 @@ export const config = {
     }
   }
 };
+

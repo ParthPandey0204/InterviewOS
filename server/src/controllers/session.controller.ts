@@ -41,3 +41,11 @@ export const listUserSessions = asyncHandler(async (request: Request, response: 
 
   response.json({ sessions });
 });
+export const createTurn = asyncHandler(async (request: Request, response: Response) => {
+  const userId = requireUserId(request);
+  const sessionId = requireSessionId(request);
+  const result = await sessionService.createTurn(userId, sessionId, request.body);
+
+  response.status(201).json(result);
+});
+

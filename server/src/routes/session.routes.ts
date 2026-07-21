@@ -7,4 +7,5 @@ export const sessionRouter = Router();
 sessionRouter.use(requireAuth);
 sessionRouter.post("/", sessionController.createSession);
 sessionRouter.get("/", sessionController.listUserSessions);
+sessionRouter.post("/:id/turns", sessionController.createTurn);
 sessionRouter.get("/:id", sessionController.getSessionById);

@@ -1,11 +1,18 @@
-import { QuestionDifficulty } from "@prisma/client";
+import { QuestionDifficulty, SessionStatus, TurnRole } from "@prisma/client";
+import { config } from "../config.js";
 import { HttpError } from "../middleware/error.js";
 import { prisma } from "../prisma/client.js";
+import { createLLMService, type LLMMessage, type LLMProvider } from "./llm/index.js";
 
 type CreateSessionInput = {
   mode?: unknown;
   difficulty?: unknown;
   company?: unknown;
+};
+
+type CreateTurnInput = {
+  answer?: unknown;
+  provider?: unknown;
 };
 
 const normalizeText = (value: unknown, fieldName: string) => {
@@ -39,6 +46,16 @@ const normalizeDifficulty = (difficulty: unknown) => {
   return normalized as QuestionDifficulty;
 };
 
+const normalizeProvider = (provider: unknown): LLMProvider => {
+  const candidate = typeof provider === "string" ? provider : config.llm.defaultProvider;
+
+  if (candidate === "gemini" || candidate === "groq") {
+    return candidate;
+  }
+
+  throw new HttpError(400, "Provider must be gemini or groq");
+};
+
 const sessionSelect = {
   id: true,
   userId: true,
@@ -52,6 +69,63 @@ const sessionSelect = {
   endedAt: true,
   createdAt: true,
   updatedAt: true
+};
+
+const turnSelect = {
+  id: true,
+  role: true,
+  content: true,
+  metadata: true,
+  position: true,
+  createdAt: true
+};
+
+const buildNextQuestionPrompt = (session: {
+  mode: string;
+  difficulty: QuestionDifficulty;
+  targetCompany: string | null;
+  targetRole: string | null;
+}) => {
+  const context = [
+    `Mode: ${session.mode}`,
+    `Difficulty: ${session.difficulty}`,
+    session.targetCompany ? `Target company: ${session.targetCompany}` : undefined,
+    session.targetRole ? `Target role: ${session.targetRole}` : undefined
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return `You are an interview coach conducting a realistic mock interview.\n${context}\n\nGiven the conversation so far, respond with exactly one next interview question. Keep it concise and do not include feedback unless it is needed to naturally transition.`;
+};
+
+const toLLMMessages = (
+  session: {
+    mode: string;
+    difficulty: QuestionDifficulty;
+    targetCompany: string | null;
+    targetRole: string | null;
+  },
+  turns: Array<{ role: TurnRole; content: string }>,
+  latestAnswer: string
+): LLMMessage[] => {
+  const messages: LLMMessage[] = [
+    {
+      role: "system",
+      content: buildNextQuestionPrompt(session)
+    }
+  ];
+
+  for (const turn of turns) {
+    if (turn.role === TurnRole.USER || turn.role === TurnRole.ASSISTANT) {
+      messages.push({
+        role: turn.role === TurnRole.USER ? "user" : "assistant",
+        content: turn.content
+      });
+    }
+  }
+
+  messages.push({ role: "user", content: latestAnswer });
+  return messages;
 };
 
 export const createSession = async (userId: string, input: CreateSessionInput) => {
@@ -81,14 +155,7 @@ export const getSessionById = async (userId: string, sessionId: string) => {
       ...sessionSelect,
       turns: {
         orderBy: { position: "asc" },
-        select: {
-          id: true,
-          role: true,
-          content: true,
-          metadata: true,
-          position: true,
-          createdAt: true
-        }
+        select: turnSelect
       },
       topicStats: {
         orderBy: { topic: "asc" },
@@ -119,3 +186,103 @@ export const listUserSessions = async (userId: string) => {
     select: sessionSelect
   });
 };
+
+export const createTurn = async (
+  userId: string,
+  sessionId: string,
+  input: CreateTurnInput
+) => {
+  const answer = normalizeText(input.answer, "Answer");
+  const provider = normalizeProvider(input.provider);
+
+  const session = await prisma.session.findFirst({
+    where: {
+      id: sessionId,
+      userId
+    },
+    select: {
+      id: true,
+      mode: true,
+      difficulty: true,
+      targetCompany: true,
+      targetRole: true,
+      status: true,
+      turns: {
+        orderBy: { position: "asc" },
+        select: {
+          role: true,
+          content: true
+        }
+      }
+    }
+  });
+
+  if (!session) {
+    throw new HttpError(404, "Session not found");
+  }
+
+  if (session.status !== SessionStatus.ACTIVE) {
+    throw new HttpError(409, "Cannot add turns to an inactive session");
+  }
+
+  const llm = createLLMService(provider);
+  const llmResult = await llm.generate({
+    messages: toLLMMessages(session, session.turns, answer),
+    options: {
+      temperature: 0.7,
+      maxTokens: 300
+    }
+  });
+
+  const nextQuestion = llmResult.content.trim();
+
+  if (!nextQuestion) {
+    throw new HttpError(502, "LLM returned an empty next question");
+  }
+
+  const [userTurn, assistantTurn] = await prisma.$transaction(async (tx) => {
+    const latestTurn = await tx.turn.findFirst({
+      where: { sessionId },
+      orderBy: { position: "desc" },
+      select: { position: true }
+    });
+    const position = (latestTurn?.position ?? -1) + 1;
+
+    const createdUserTurn = await tx.turn.create({
+      data: {
+        sessionId,
+        role: TurnRole.USER,
+        content: answer,
+        position
+      },
+      select: turnSelect
+    });
+    const createdAssistantTurn = await tx.turn.create({
+      data: {
+        sessionId,
+        role: TurnRole.ASSISTANT,
+        content: nextQuestion,
+        position: position + 1,
+        metadata: {
+          provider: llmResult.provider,
+          model: llmResult.model,
+          usage: llmResult.usage ?? null
+        }
+      },
+      select: turnSelect
+    });
+
+    await tx.session.update({
+      where: { id: sessionId },
+      data: { updatedAt: new Date() }
+    });
+
+    return [createdUserTurn, createdAssistantTurn] as const;
+  });
+
+  return {
+    turn: userTurn,
+    nextQuestion: assistantTurn
+  };
+};
+
