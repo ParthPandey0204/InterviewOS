@@ -2,7 +2,8 @@ import { QuestionDifficulty, SessionStatus, TurnRole } from "@prisma/client";
 import { config } from "../config.js";
 import { HttpError } from "../middleware/error.js";
 import { prisma } from "../prisma/client.js";
-import { createLLMService, type LLMMessage, type LLMProvider } from "./llm/index.js";
+import { buildNextQuestionMessages } from "./interview-prompts.service.js";
+import { createLLMService, type LLMProvider } from "./llm/index.js";
 
 type CreateSessionInput = {
   mode?: unknown;
@@ -78,54 +79,6 @@ const turnSelect = {
   metadata: true,
   position: true,
   createdAt: true
-};
-
-const buildNextQuestionPrompt = (session: {
-  mode: string;
-  difficulty: QuestionDifficulty;
-  targetCompany: string | null;
-  targetRole: string | null;
-}) => {
-  const context = [
-    `Mode: ${session.mode}`,
-    `Difficulty: ${session.difficulty}`,
-    session.targetCompany ? `Target company: ${session.targetCompany}` : undefined,
-    session.targetRole ? `Target role: ${session.targetRole}` : undefined
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  return `You are an interview coach conducting a realistic mock interview.\n${context}\n\nGiven the conversation so far, respond with exactly one next interview question. Keep it concise and do not include feedback unless it is needed to naturally transition.`;
-};
-
-const toLLMMessages = (
-  session: {
-    mode: string;
-    difficulty: QuestionDifficulty;
-    targetCompany: string | null;
-    targetRole: string | null;
-  },
-  turns: Array<{ role: TurnRole; content: string }>,
-  latestAnswer: string
-): LLMMessage[] => {
-  const messages: LLMMessage[] = [
-    {
-      role: "system",
-      content: buildNextQuestionPrompt(session)
-    }
-  ];
-
-  for (const turn of turns) {
-    if (turn.role === TurnRole.USER || turn.role === TurnRole.ASSISTANT) {
-      messages.push({
-        role: turn.role === TurnRole.USER ? "user" : "assistant",
-        content: turn.content
-      });
-    }
-  }
-
-  messages.push({ role: "user", content: latestAnswer });
-  return messages;
 };
 
 export const createSession = async (userId: string, input: CreateSessionInput) => {
@@ -227,7 +180,7 @@ export const createTurn = async (
 
   const llm = createLLMService(provider);
   const llmResult = await llm.generate({
-    messages: toLLMMessages(session, session.turns, answer),
+    messages: buildNextQuestionMessages(session, session.turns, answer),
     options: {
       temperature: 0.7,
       maxTokens: 300
@@ -285,4 +238,5 @@ export const createTurn = async (
     nextQuestion: assistantTurn
   };
 };
+
 
