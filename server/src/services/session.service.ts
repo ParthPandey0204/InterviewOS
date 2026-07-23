@@ -16,6 +16,16 @@ type CreateTurnInput = {
   provider?: unknown;
 };
 
+type ActiveSessionForTurn = {
+  id: string;
+  mode: string;
+  difficulty: QuestionDifficulty;
+  targetCompany: string | null;
+  targetRole: string | null;
+  status: SessionStatus;
+  turns: Array<{ role: TurnRole; content: string }>;
+};
+
 const normalizeText = (value: unknown, fieldName: string) => {
   if (typeof value !== "string" || !value.trim()) {
     throw new HttpError(400, `${fieldName} is required`);
@@ -79,6 +89,92 @@ const turnSelect = {
   metadata: true,
   position: true,
   createdAt: true
+};
+
+const getActiveSessionForTurn = async (
+  userId: string,
+  sessionId: string
+): Promise<ActiveSessionForTurn> => {
+  const session = await prisma.session.findFirst({
+    where: {
+      id: sessionId,
+      userId
+    },
+    select: {
+      id: true,
+      mode: true,
+      difficulty: true,
+      targetCompany: true,
+      targetRole: true,
+      status: true,
+      turns: {
+        orderBy: { position: "asc" },
+        select: {
+          role: true,
+          content: true
+        }
+      }
+    }
+  });
+
+  if (!session) {
+    throw new HttpError(404, "Session not found");
+  }
+
+  if (session.status !== SessionStatus.ACTIVE) {
+    throw new HttpError(409, "Cannot add turns to an inactive session");
+  }
+
+  return session;
+};
+
+const persistTurnPair = async (input: {
+  sessionId: string;
+  answer: string;
+  nextQuestion: string;
+  provider: LLMProvider;
+  model?: string;
+  usage?: unknown;
+}) => {
+  return prisma.$transaction(async (tx) => {
+    const latestTurn = await tx.turn.findFirst({
+      where: { sessionId: input.sessionId },
+      orderBy: { position: "desc" },
+      select: { position: true }
+    });
+    const position = (latestTurn?.position ?? -1) + 1;
+
+    const createdUserTurn = await tx.turn.create({
+      data: {
+        sessionId: input.sessionId,
+        role: TurnRole.USER,
+        content: input.answer,
+        position
+      },
+      select: turnSelect
+    });
+    const createdAssistantTurn = await tx.turn.create({
+      data: {
+        sessionId: input.sessionId,
+        role: TurnRole.ASSISTANT,
+        content: input.nextQuestion,
+        position: position + 1,
+        metadata: {
+          provider: input.provider,
+          model: input.model ?? null,
+          usage: input.usage ?? null
+        }
+      },
+      select: turnSelect
+    });
+
+    await tx.session.update({
+      where: { id: input.sessionId },
+      data: { updatedAt: new Date() }
+    });
+
+    return [createdUserTurn, createdAssistantTurn] as const;
+  });
 };
 
 export const createSession = async (userId: string, input: CreateSessionInput) => {
@@ -147,37 +243,7 @@ export const createTurn = async (
 ) => {
   const answer = normalizeText(input.answer, "Answer");
   const provider = normalizeProvider(input.provider);
-
-  const session = await prisma.session.findFirst({
-    where: {
-      id: sessionId,
-      userId
-    },
-    select: {
-      id: true,
-      mode: true,
-      difficulty: true,
-      targetCompany: true,
-      targetRole: true,
-      status: true,
-      turns: {
-        orderBy: { position: "asc" },
-        select: {
-          role: true,
-          content: true
-        }
-      }
-    }
-  });
-
-  if (!session) {
-    throw new HttpError(404, "Session not found");
-  }
-
-  if (session.status !== SessionStatus.ACTIVE) {
-    throw new HttpError(409, "Cannot add turns to an inactive session");
-  }
-
+  const session = await getActiveSessionForTurn(userId, sessionId);
   const llm = createLLMService(provider);
   const llmResult = await llm.generate({
     messages: buildNextQuestionMessages(session, session.turns, answer),
@@ -193,44 +259,13 @@ export const createTurn = async (
     throw new HttpError(502, "LLM returned an empty next question");
   }
 
-  const [userTurn, assistantTurn] = await prisma.$transaction(async (tx) => {
-    const latestTurn = await tx.turn.findFirst({
-      where: { sessionId },
-      orderBy: { position: "desc" },
-      select: { position: true }
-    });
-    const position = (latestTurn?.position ?? -1) + 1;
-
-    const createdUserTurn = await tx.turn.create({
-      data: {
-        sessionId,
-        role: TurnRole.USER,
-        content: answer,
-        position
-      },
-      select: turnSelect
-    });
-    const createdAssistantTurn = await tx.turn.create({
-      data: {
-        sessionId,
-        role: TurnRole.ASSISTANT,
-        content: nextQuestion,
-        position: position + 1,
-        metadata: {
-          provider: llmResult.provider,
-          model: llmResult.model,
-          usage: llmResult.usage ?? null
-        }
-      },
-      select: turnSelect
-    });
-
-    await tx.session.update({
-      where: { id: sessionId },
-      data: { updatedAt: new Date() }
-    });
-
-    return [createdUserTurn, createdAssistantTurn] as const;
+  const [userTurn, assistantTurn] = await persistTurnPair({
+    sessionId,
+    answer,
+    nextQuestion,
+    provider: llmResult.provider,
+    model: llmResult.model,
+    usage: llmResult.usage
   });
 
   return {
@@ -239,4 +274,44 @@ export const createTurn = async (
   };
 };
 
+export const createTurnStream = async (
+  userId: string,
+  sessionId: string,
+  input: CreateTurnInput
+) => {
+  const answer = normalizeText(input.answer, "Answer");
+  const provider = normalizeProvider(input.provider);
+  const session = await getActiveSessionForTurn(userId, sessionId);
+  const llm = createLLMService(provider);
+  const stream = llm.generateStream({
+    messages: buildNextQuestionMessages(session, session.turns, answer),
+    options: {
+      temperature: 0.7,
+      maxTokens: 300
+    }
+  });
 
+  return {
+    provider,
+    stream,
+    commit: async (nextQuestionContent: string) => {
+      const nextQuestion = nextQuestionContent.trim();
+
+      if (!nextQuestion) {
+        throw new HttpError(502, "LLM returned an empty next question");
+      }
+
+      const [userTurn, assistantTurn] = await persistTurnPair({
+        sessionId,
+        answer,
+        nextQuestion,
+        provider
+      });
+
+      return {
+        turn: userTurn,
+        nextQuestion: assistantTurn
+      };
+    }
+  };
+};

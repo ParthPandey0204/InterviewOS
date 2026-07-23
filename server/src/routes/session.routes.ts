@@ -8,4 +8,5 @@ sessionRouter.use(requireAuth);
 sessionRouter.post("/", sessionController.createSession);
 sessionRouter.get("/", sessionController.listUserSessions);
 sessionRouter.post("/:id/turns", sessionController.createTurn);
+sessionRouter.post("/:id/turns/stream", sessionController.createTurnStream);
 sessionRouter.get("/:id", sessionController.getSessionById);

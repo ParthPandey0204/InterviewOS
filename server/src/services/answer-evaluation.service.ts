@@ -1,6 +1,7 @@
+import { z } from "zod";
 import { config } from "../config.js";
 import { HttpError } from "../middleware/error.js";
-import { buildEvaluationMessages, type EvaluationScores } from "./interview-prompts.service.js";
+import { buildEvaluationMessages } from "./interview-prompts.service.js";
 import { createLLMService, type LLMProvider } from "./llm/index.js";
 
 type EvaluateAnswerInput = {
@@ -8,6 +9,16 @@ type EvaluateAnswerInput = {
   answer: string;
   provider?: LLMProvider;
 };
+
+export const evaluationScoresSchema = z
+  .object({
+    correctness: z.number().int().min(0).max(5),
+    clarity: z.number().int().min(0).max(5),
+    depth: z.number().int().min(0).max(5)
+  })
+  .strict();
+
+export type EvaluationScores = z.infer<typeof evaluationScoresSchema>;
 
 const parseJsonObject = (content: string) => {
   try {
@@ -23,28 +34,14 @@ const parseJsonObject = (content: string) => {
   }
 };
 
-const validateScore = (payload: Record<string, unknown>, key: keyof EvaluationScores): number => {
-  const value = payload[key];
-
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 5) {
-    throw new HttpError(502, `Evaluation field ${key} must be an integer from 0 to 5`);
-  }
-
-  return value;
-};
-
 export const validateEvaluationScores = (payload: unknown): EvaluationScores => {
-  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
-    throw new HttpError(502, "Evaluation response must be a JSON object");
+  const result = evaluationScoresSchema.safeParse(payload);
+
+  if (!result.success) {
+    throw new HttpError(502, "Evaluation response failed schema validation", result.error.flatten());
   }
 
-  const record = payload as Record<string, unknown>;
-
-  return {
-    correctness: validateScore(record, "correctness"),
-    clarity: validateScore(record, "clarity"),
-    depth: validateScore(record, "depth")
-  };
+  return result.data;
 };
 
 const defaultProvider = (): LLMProvider => {
@@ -74,5 +71,3 @@ export const evaluateAnswer = async (input: EvaluateAnswerInput) => {
     scores: validateEvaluationScores(parseJsonObject(result.content))
   };
 };
-
-
