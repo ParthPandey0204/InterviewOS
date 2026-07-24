@@ -3,7 +3,8 @@ import { config } from "../config.js";
 import { HttpError } from "../middleware/error.js";
 import { prisma } from "../prisma/client.js";
 import { buildNextQuestionMessages } from "./interview-prompts.service.js";
-import { createLLMService, type LLMProvider } from "./llm/index.js";
+import { createLLMService, type LLMGenerateResult, type LLMProvider } from "./llm/index.js";
+import { defaultModelForProvider, logUsage } from "./usage-log.service.js";
 
 type CreateSessionInput = {
   mode?: unknown;
@@ -245,13 +246,45 @@ export const createTurn = async (
   const provider = normalizeProvider(input.provider);
   const session = await getActiveSessionForTurn(userId, sessionId);
   const llm = createLLMService(provider);
-  const llmResult = await llm.generate({
-    messages: buildNextQuestionMessages(session, session.turns, answer),
-    options: {
-      temperature: 0.7,
-      maxTokens: 300
-    }
-  });
+  const startedAt = Date.now();
+
+  let llmResult: LLMGenerateResult;
+
+  try {
+    llmResult = await llm.generate({
+      messages: buildNextQuestionMessages(session, session.turns, answer),
+      options: {
+        temperature: 0.7,
+        maxTokens: 300
+      }
+    });
+    const latencyMs = Date.now() - startedAt;
+
+    await logUsage({
+      userId,
+      sessionId,
+      provider: llmResult.provider,
+      model: llmResult.model,
+      operation: "turn.generate",
+      latencyMs,
+      usage: llmResult.usage,
+      metadata: { status: "success" }
+    });
+  } catch (error) {
+    await logUsage({
+      userId,
+      sessionId,
+      provider,
+      operation: "turn.generate",
+      latencyMs: Date.now() - startedAt,
+      metadata: {
+        status: "error",
+        error: error instanceof Error ? error.message : "Unknown LLM error"
+      }
+    });
+
+    throw error;
+  }
 
   const nextQuestion = llmResult.content.trim();
 
@@ -281,9 +314,10 @@ export const createTurnStream = async (
 ) => {
   const answer = normalizeText(input.answer, "Answer");
   const provider = normalizeProvider(input.provider);
+  const model = defaultModelForProvider(provider);
   const session = await getActiveSessionForTurn(userId, sessionId);
   const llm = createLLMService(provider);
-  const stream = llm.generateStream({
+  const providerStream = llm.generateStream({
     messages: buildNextQuestionMessages(session, session.turns, answer),
     options: {
       temperature: 0.7,
@@ -291,9 +325,44 @@ export const createTurnStream = async (
     }
   });
 
+  async function* stream() {
+    const startedAt = Date.now();
+
+    try {
+      for await (const chunk of providerStream) {
+        yield chunk;
+      }
+
+      await logUsage({
+        userId,
+        sessionId,
+        provider,
+        model,
+        operation: "turn.generate.stream",
+        latencyMs: Date.now() - startedAt,
+        metadata: { status: "success" }
+      });
+    } catch (error) {
+      await logUsage({
+        userId,
+        sessionId,
+        provider,
+        model,
+        operation: "turn.generate.stream",
+        latencyMs: Date.now() - startedAt,
+        metadata: {
+          status: "error",
+          error: error instanceof Error ? error.message : "Unknown LLM error"
+        }
+      });
+
+      throw error;
+    }
+  }
+
   return {
     provider,
-    stream,
+    stream: stream(),
     commit: async (nextQuestionContent: string) => {
       const nextQuestion = nextQuestionContent.trim();
 
@@ -305,7 +374,8 @@ export const createTurnStream = async (
         sessionId,
         answer,
         nextQuestion,
-        provider
+        provider,
+        model
       });
 
       return {
@@ -315,3 +385,5 @@ export const createTurnStream = async (
     }
   };
 };
+
+

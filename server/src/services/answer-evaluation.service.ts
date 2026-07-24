@@ -2,12 +2,15 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { HttpError } from "../middleware/error.js";
 import { buildEvaluationMessages } from "./interview-prompts.service.js";
-import { createLLMService, type LLMProvider } from "./llm/index.js";
+import { createLLMService, type LLMGenerateResult, type LLMProvider } from "./llm/index.js";
+import { logUsage } from "./usage-log.service.js";
 
 type EvaluateAnswerInput = {
   question: string;
   answer: string;
   provider?: LLMProvider;
+  userId?: string;
+  sessionId?: string;
 };
 
 export const evaluationScoresSchema = z
@@ -53,17 +56,49 @@ const defaultProvider = (): LLMProvider => {
 };
 
 export const evaluateAnswer = async (input: EvaluateAnswerInput) => {
-  const llm = createLLMService(input.provider ?? defaultProvider());
-  const result = await llm.generate({
-    messages: buildEvaluationMessages({
-      question: input.question,
-      answer: input.answer
-    }),
-    options: {
-      temperature: 0,
-      maxTokens: 120
-    }
-  });
+  const provider = input.provider ?? defaultProvider();
+  const llm = createLLMService(provider);
+  const startedAt = Date.now();
+
+  let result: LLMGenerateResult;
+
+  try {
+    result = await llm.generate({
+      messages: buildEvaluationMessages({
+        question: input.question,
+        answer: input.answer
+      }),
+      options: {
+        temperature: 0,
+        maxTokens: 120
+      }
+    });
+
+    await logUsage({
+      userId: input.userId,
+      sessionId: input.sessionId,
+      provider: result.provider,
+      model: result.model,
+      operation: "answer.evaluate",
+      latencyMs: Date.now() - startedAt,
+      usage: result.usage,
+      metadata: { status: "success" }
+    });
+  } catch (error) {
+    await logUsage({
+      userId: input.userId,
+      sessionId: input.sessionId,
+      provider,
+      operation: "answer.evaluate",
+      latencyMs: Date.now() - startedAt,
+      metadata: {
+        status: "error",
+        error: error instanceof Error ? error.message : "Unknown LLM error"
+      }
+    });
+
+    throw error;
+  }
 
   return {
     provider: result.provider,
@@ -71,3 +106,4 @@ export const evaluateAnswer = async (input: EvaluateAnswerInput) => {
     scores: validateEvaluationScores(parseJsonObject(result.content))
   };
 };
+
