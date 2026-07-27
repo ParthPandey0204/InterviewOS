@@ -2,6 +2,7 @@ import { QuestionDifficulty, SessionStatus, TurnRole } from "@prisma/client";
 import { config } from "../config.js";
 import { HttpError } from "../middleware/error.js";
 import { prisma } from "../prisma/client.js";
+import { evaluateAnswer } from "./answer-evaluation.service.js";
 import { buildNextQuestionMessages } from "./interview-prompts.service.js";
 import { createLLMService, type LLMGenerateResult, type LLMProvider } from "./llm/index.js";
 import { defaultModelForProvider, logUsage } from "./usage-log.service.js";
@@ -136,6 +137,7 @@ const persistTurnPair = async (input: {
   provider: LLMProvider;
   model?: string;
   usage?: unknown;
+  evaluation?: unknown;
 }) => {
   return prisma.$transaction(async (tx) => {
     const latestTurn = await tx.turn.findFirst({
@@ -150,7 +152,8 @@ const persistTurnPair = async (input: {
         sessionId: input.sessionId,
         role: TurnRole.USER,
         content: input.answer,
-        position
+        position,
+        metadata: input.evaluation ? { evaluation: input.evaluation } : undefined
       },
       select: turnSelect
     });
@@ -248,16 +251,36 @@ export const createTurn = async (
   const llm = createLLMService(provider);
   const startedAt = Date.now();
 
+  const previousAssistantTurn = [...session.turns].reverse().find(t => t.role === TurnRole.ASSISTANT);
+  const previousQuestion = previousAssistantTurn?.content ?? "Please introduce yourself and explain your background.";
+
   let llmResult: LLMGenerateResult;
+  let evaluationResult: any = null;
 
   try {
-    llmResult = await llm.generate({
-      messages: buildNextQuestionMessages(session, session.turns, answer),
-      options: {
-        temperature: 0.7,
-        maxTokens: 300
-      }
-    });
+    const [genResult, evalResult] = await Promise.all([
+      llm.generate({
+        messages: buildNextQuestionMessages(session, session.turns, answer),
+        options: {
+          temperature: 0.7,
+          maxTokens: 300
+        }
+      }),
+      evaluateAnswer({
+        question: previousQuestion,
+        answer,
+        provider,
+        userId,
+        sessionId
+      }).catch(e => {
+        console.error("Evaluation failed", e);
+        return null;
+      })
+    ]);
+    
+    llmResult = genResult;
+    evaluationResult = evalResult;
+    
     const latencyMs = Date.now() - startedAt;
 
     await logUsage({
@@ -298,7 +321,8 @@ export const createTurn = async (
     nextQuestion,
     provider: llmResult.provider,
     model: llmResult.model,
-    usage: llmResult.usage
+    usage: llmResult.usage,
+    evaluation: evaluationResult?.scores
   });
 
   return {
@@ -317,6 +341,21 @@ export const createTurnStream = async (
   const model = defaultModelForProvider(provider);
   const session = await getActiveSessionForTurn(userId, sessionId);
   const llm = createLLMService(provider);
+  
+  const previousAssistantTurn = [...session.turns].reverse().find(t => t.role === TurnRole.ASSISTANT);
+  const previousQuestion = previousAssistantTurn?.content ?? "Please introduce yourself and explain your background.";
+
+  const evaluationPromise = evaluateAnswer({
+    question: previousQuestion,
+    answer,
+    provider,
+    userId,
+    sessionId
+  }).catch(e => {
+    console.error("Evaluation failed", e);
+    return null;
+  });
+
   const providerStream = llm.generateStream({
     messages: buildNextQuestionMessages(session, session.turns, answer),
     options: {
@@ -370,12 +409,15 @@ export const createTurnStream = async (
         throw new HttpError(502, "LLM returned an empty next question");
       }
 
+      const evaluationResult = await evaluationPromise;
+
       const [userTurn, assistantTurn] = await persistTurnPair({
         sessionId,
         answer,
         nextQuestion,
         provider,
-        model
+        model,
+        evaluation: evaluationResult?.scores
       });
 
       return {
