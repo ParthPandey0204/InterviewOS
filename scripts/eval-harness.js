@@ -14,8 +14,8 @@ const prisma = new PrismaClient();
  * Benchmark dataset with 10 hand-written sample answers of varying quality
  * per topic across DSA, System Design, and Behavioral domains (30 total).
  * 
- * Each sample is run through the scoring prompt 10 times and every run
- * is stored in the database EvalRun table.
+ * Computes mean and variance per rubric axis (Correctness, Clarity, Depth, Overall)
+ * and prints a summary statistical table. Stores all runs in the EvalRun database table.
  */
 
 export const evalDataset = [
@@ -312,6 +312,35 @@ function evaluateRubric(item) {
   };
 }
 
+/**
+ * Statistical Helper Functions for Mean & Variance
+ */
+function calculateStats(numbers) {
+  const count = numbers.length;
+  if (count === 0) {
+    return { mean: "0.000", variance: "0.0000", stdDev: "0.0000", min: 0, max: 0, count: 0 };
+  }
+
+  const sum = numbers.reduce((acc, val) => acc + val, 0);
+  const mean = sum / count;
+
+  // Population variance: average squared distance from mean
+  const variance = numbers.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / count;
+  const stdDev = Math.sqrt(variance);
+
+  const min = Math.min(...numbers);
+  const max = Math.max(...numbers);
+
+  return {
+    mean: mean.toFixed(3),
+    variance: variance.toFixed(4),
+    stdDev: stdDev.toFixed(4),
+    min,
+    max,
+    count
+  };
+}
+
 async function getOrCreateEvalUser() {
   let user = await prisma.user.findFirst();
   if (!user) {
@@ -337,6 +366,13 @@ async function runEvalHarness() {
 
   const RUNS_PER_SAMPLE = 10;
   const recordsToInsert = [];
+  const evalDataByScope = {
+    DSA: { correctness: [], clarity: [], depth: [], score: [] },
+    "System Design": { correctness: [], clarity: [], depth: [], score: [] },
+    Behavioral: { correctness: [], clarity: [], depth: [], score: [] },
+    OVERALL: { correctness: [], clarity: [], depth: [], score: [] }
+  };
+
   const topics = ["DSA", "System Design", "Behavioral"];
 
   for (const topic of topics) {
@@ -350,6 +386,17 @@ async function runEvalHarness() {
       const pass = evalResult.score >= item.expectedScoreRange[0] - 0.5 && evalResult.score <= item.expectedScoreRange[1] + 0.5;
 
       for (let runIdx = 1; runIdx <= RUNS_PER_SAMPLE; runIdx++) {
+        // Collect metrics into statistical tracking
+        evalDataByScope[topic].correctness.push(evalResult.correctness);
+        evalDataByScope[topic].clarity.push(evalResult.clarity);
+        evalDataByScope[topic].depth.push(evalResult.depth);
+        evalDataByScope[topic].score.push(evalResult.score);
+
+        evalDataByScope.OVERALL.correctness.push(evalResult.correctness);
+        evalDataByScope.OVERALL.clarity.push(evalResult.clarity);
+        evalDataByScope.OVERALL.depth.push(evalResult.depth);
+        evalDataByScope.OVERALL.score.push(evalResult.score);
+
         recordsToInsert.push({
           userId: evalUser.id,
           provider: UsageProvider.GEMINI,
@@ -384,6 +431,32 @@ async function runEvalHarness() {
     data: recordsToInsert
   });
 
+  console.log("\n====================================================================================================");
+  console.log("  RUBRIC AXIS STATISTICAL SUMMARY TABLE (MEAN & VARIANCE PER SCOPE)");
+  console.log("====================================================================================================");
+  console.log(
+    `${"Scope / Domain".padEnd(16)} | ${"Rubric Axis".padEnd(14)} | ${"Count".padEnd(6)} | ${"Mean (μ)".padEnd(9)} | ${"Variance (σ²)".padEnd(13)} | ${"Std Dev (σ)".padEnd(11)} | Range`
+  );
+  console.log("-".repeat(100));
+
+  const scopes = ["DSA", "System Design", "Behavioral", "OVERALL"];
+  const axes = [
+    { key: "correctness", label: "Correctness" },
+    { key: "clarity", label: "Clarity" },
+    { key: "depth", label: "Depth" },
+    { key: "score", label: "Overall Score" }
+  ];
+
+  for (const scope of scopes) {
+    for (const axis of axes) {
+      const stats = calculateStats(evalDataByScope[scope][axis.key]);
+      console.log(
+        `${scope.padEnd(16)} | ${axis.label.padEnd(14)} | ${String(stats.count).padEnd(6)} | ${stats.mean.padEnd(9)} | ${stats.variance.padEnd(13)} | ${stats.stdDev.padEnd(11)} | [${stats.min} - ${stats.max}]`
+      );
+    }
+    console.log("-".repeat(100));
+  }
+
   console.log("\n==========================================================");
   console.log(" EVALUATION SUMMARY & DATABASE METRICS");
   console.log("==========================================================");
@@ -393,8 +466,8 @@ async function runEvalHarness() {
   console.log(`- Total EvalRun Records In Database   : ${totalEvalRunsInDb}`);
 
   console.log("\n==========================================================");
-  console.log(" SUCCESS: All 30 samples successfully evaluated 10 times each");
-  console.log("          and stored in the EvalRun table!");
+  console.log(" SUCCESS: Computed mean and variance per rubric axis across 300 runs");
+  console.log("          and printed statistical summary table!");
   console.log("==========================================================\n");
 }
 
