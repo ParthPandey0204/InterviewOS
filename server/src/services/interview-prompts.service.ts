@@ -29,9 +29,28 @@ const difficultyCalibration: Record<QuestionDifficulty, string> = {
 };
 
 const rubricDefinition = [
-  "Correctness: factual accuracy, sound reasoning, and whether the answer solves the actual question.",
-  "Clarity: organization, concise explanation, explicit assumptions, and ability to communicate under interview pressure.",
-  "Depth: coverage of tradeoffs, edge cases, complexity, practical constraints, and follow-up awareness."
+  "Scoring Rubric (Strict 0 to 5 Integer Scale for each axis):",
+  "- Correctness (0-5): 5 = Fully accurate, sound reasoning, completely solves problem. 3 = Partially correct with minor flaws/omissions. 1 = Flawed reasoning or incorrect algorithm. 0 = Completely incorrect or non-answer.",
+  "- Clarity (0-5): 5 = Well-structured, concise, explicit assumptions, professional. 3 = Understandable but wordy or slightly unorganized. 1 = Confusing, rambling, or vague. 0 = Incoherent.",
+  "- Depth (0-5): 5 = Covers tradeoffs, edge cases, space/time complexity, and practical constraints. 3 = Basic explanation without deep tradeoffs. 1 = Shallow single-sentence answer. 0 = No technical depth."
+].join("\n");
+
+const fewShotExamples = [
+  "--- FEW-SHOT SCORING EXAMPLES ---",
+  "Example 1:",
+  "Question: How do you find two numbers in an array that add up to a target sum?",
+  "Answer: Use a Hash Map storing target - num as complement. O(n) time and O(n) space.",
+  "Output: {\"correctness\": 5, \"clarity\": 5, \"depth\": 5}",
+  "",
+  "Example 2:",
+  "Question: Design a Rate Limiter for an API gateway supporting 10,000 QPS.",
+  "Answer: Put AWS CloudFront in front of the server and enable auto-scaling.",
+  "Output: {\"correctness\": 1, \"clarity\": 2, \"depth\": 1}",
+  "",
+  "Example 3:",
+  "Question: Tell me about a time you faced a production outage.",
+  "Answer: Outages happen all the time so I just ignore PagerDuty alerts.",
+  "Output: {\"correctness\": 0, \"clarity\": 1, \"depth\": 0}"
 ].join("\n");
 
 const formatSessionContext = (session: InterviewPromptSession) => {
@@ -101,6 +120,7 @@ export const buildEvaluationMessages = (input: {
         "Each score must be an integer from 0 to 5.",
         "Rubric definition:",
         rubricDefinition,
+        fewShotExamples,
         context.trim()
       ]
         .filter(Boolean)
