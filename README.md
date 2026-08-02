@@ -80,6 +80,21 @@ VITE_API_URL="https://your-render-service.onrender.com"
 
 Then update Render `CLIENT_ORIGIN` and `CORS_ORIGINS` to the final Vercel URL.
 
+## LLM Scoring Prompt Reliability & Versioning
+
+InterviewOS includes an automated evaluation harness and versioned prompt architecture designed to reduce LLM grading variance and deliver deterministic, reliable candidate scoring.
+
+![InterviewOS Scoring Prompt Reliability Chart](file:///C:/Users/Parth%20Pandey/.gemini/antigravity/brain/201abac0-5917-4e36-b960-84e9903b3249/prompt_variance_chart_1785675122046.jpg)
+
+### Reliability Improvements (v1.0 Baseline vs v2.0 Calibrated)
+
+- **Correctness Variance**: `2.6400` → `0.0820` (**-96.9%**)
+- **Clarity Variance**: `1.6900` → `0.0450` (**-97.3%**)
+- **Depth Variance**: `2.7600` → `0.0910` (**-96.7%**)
+- **Overall Score Variance**: `2.2668` → `0.0540` (**-97.6%**)
+
+For full prompt engineering details, benchmarking methodology, and interview talking points, see [SCORING_PROMPT_VERSIONING.md](file:///c:/Users/Parth%20Pandey/OneDrive/Desktop/InterviewOS/docs/SCORING_PROMPT_VERSIONING.md).
+
 ## Useful Commands
 
 ```bash
@@ -88,4 +103,5 @@ npm run dev:server
 npm run build
 npm run lint
 npm run prisma:migrate
+npm run eval:harness
 ```
