@@ -1,4 +1,5 @@
 import express from "express";
+import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { config } from "./config.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
@@ -12,6 +13,7 @@ const app = express();
 app.use(helmet());
 app.use(requestLogger);
 app.use(corsMiddleware);
+app.use(cookieParser());
 app.use(express.json());
 
 app.get("/api/health", (_request, response) => {

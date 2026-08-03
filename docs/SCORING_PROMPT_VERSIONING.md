@@ -73,9 +73,3 @@ const fewShotExamples = [
 ```
 
 ---
-
-## 4. Key Interview Talking Points
-
-1. **Why LLM Reliability Matters**: Uncalibrated LLM prompts suffer from high temperature variance and loose rubric definitions, causing the same candidate answer to receive wildly different scores depending on random seed.
-2. **Methodology**: We built an automated evaluation harness (`scripts/eval-harness.js`) running 300 automated evaluations per prompt iteration and logging every run in PostgreSQL `EvalRun` records.
-3. **Engineering Solution**: By combining few-shot exemplars, explicit anchor points for 0-5 integer ratings, and zero-temperature decoding, we achieved a **-97.6% drop in overall scoring variance**, establishing a high-confidence grading engine for mock technical interviews.
