@@ -7,10 +7,10 @@ export const ProtectedRoute: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="auth-container">
-        <div className="auth-card" style={{ textAlign: "center" }}>
-          <div className="auth-logo">iOS</div>
-          <p className="auth-subtitle">Restoring session...</p>
+      <div className="loading-page">
+        <div className="loading-card">
+          <div className="loading-mark">Interview<span>OS</span></div>
+          <p>Restoring your session...</p>
         </div>
       </div>
     );

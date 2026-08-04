@@ -84,7 +84,7 @@ export const Register: React.FC = () => {
               </div>
 
               <div className="login-field">
-                <label htmlFor="register-email">Username or email</label>
+                <label htmlFor="register-email">Email address</label>
                 <input
                   id="register-email"
                   type="email"

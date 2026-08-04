@@ -73,11 +73,11 @@ export const Login: React.FC = () => {
             <form onSubmit={handleSubmit} className="login-form">
 
               <div className="login-field">
-                <label htmlFor="login-email">Username or email</label>
+                <label htmlFor="login-email">Email address</label>
                 <input
                   id="login-email"
                   type="email"
-                  placeholder="johnsmith007"
+                  placeholder="you@example.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
