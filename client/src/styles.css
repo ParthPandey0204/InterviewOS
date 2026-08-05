@@ -37,3 +37,33 @@ body { min-height: 100vh; -webkit-font-smoothing: antialiased; }
 .loading-card p { color: #5a6e5a; margin-top: 10px; }
 
 @media (max-width: 620px) { .dashboard-page { padding: 16px; } .dashboard-header { padding: 16px; flex-wrap: wrap; } .dashboard-brand { width: 100%; } .dashboard-shell main { padding: 40px 4px 24px; } .status-panel .badge { display: none; } .sessions-panel { padding: 22px; } .session-row { align-items: flex-start; flex-direction: column; gap: 8px; } }
+
+.quick-start-section { margin: 42px 0 30px; position: relative; }
+.quick-start-section h2 { font-size: 1.3rem; margin-top: 6px; }
+.primary-action { background: #1e2d2e; border: 0; border-radius: 8px; color: #fff; cursor: pointer; font: inherit; font-weight: 600; padding: 12px 17px; transition: background .2s, transform .15s; }
+.primary-action:hover:not(:disabled) { background: #2d4a2d; transform: translateY(-1px); }
+.primary-action:disabled { cursor: wait; opacity: .65; }
+.quick-start-section > .primary-action { position: absolute; right: 0; top: 0; }
+.mode-grid { display: grid; gap: 15px; grid-template-columns: repeat(3, 1fr); margin-top: 20px; }
+.mode-card { align-items: flex-start; background: #fff; border: 1px solid #dfeadd; border-radius: 15px; color: #1a1a1a; cursor: pointer; display: flex; flex-direction: column; font: inherit; gap: 7px; padding: 20px; text-align: left; transition: box-shadow .2s, border-color .2s, transform .2s; }
+.mode-card:hover { border-color: #91b795; box-shadow: 0 12px 24px rgba(47,87,51,.11); transform: translateY(-2px); }
+.mode-icon { align-items: center; background: #eaf5eb; border-radius: 9px; color: #3a6e3a; display: inline-flex; font-size: 1.2rem; height: 34px; justify-content: center; width: 34px; }
+.mode-card small { color: #667766; line-height: 1.45; }
+.mode-card > span:last-child { color: #3a6e3a; font-size: .85rem; font-weight: 700; margin-top: 6px; }
+.session-metrics { align-items: center; display: flex; gap: 16px; }
+.score-pill { background: #eaf5eb; border: 1px solid #c9ddca; border-radius: 99px; color: #316634; font-size: .78rem; font-weight: 700; min-width: 68px; padding: 5px 8px; text-align: center; }
+.modal-backdrop { align-items: center; background: rgba(27,54,30,.35); display: flex; inset: 0; justify-content: center; padding: 20px; position: fixed; z-index: 10; }
+.setup-modal { background: #fff; border-radius: 18px; box-shadow: 0 24px 70px rgba(26,54,29,.28); max-width: 500px; padding: 32px; position: relative; width: 100%; }
+.setup-modal h2 { font-family: 'Playfair Display', Georgia, serif; font-size: 1.8rem; margin: 7px 0 9px; }
+.modal-description { color: #637564; line-height: 1.55; margin-bottom: 24px; }
+.modal-close { background: transparent; border: 0; color: #647565; cursor: pointer; font-size: 1.8rem; line-height: 1; padding: 4px; position: absolute; right: 17px; top: 15px; }
+.setup-modal form { display: grid; gap: 19px; }
+.setup-modal label { color: #334634; display: grid; font-size: .86rem; font-weight: 600; gap: 8px; }
+.setup-modal select { appearance: auto; background: #fff; border: 1.5px solid #d0d5dd; border-radius: 8px; color: #1a1a1a; font: inherit; padding: 12px 13px; }
+.setup-modal select:focus { border-color: #3a6e3a; box-shadow: 0 0 0 3px rgba(58,110,58,.1); outline: 0; }
+.difficulty-options { display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); }
+.difficulty-options button { background: #fff; border: 1px solid #d0d5dd; border-radius: 8px; color: #526353; cursor: pointer; font: inherit; padding: 10px; }
+.difficulty-options button.selected { background: #eaf5eb; border-color: #5d9860; color: #295f2e; font-weight: 700; }
+.modal-submit { margin-top: 4px; width: 100%; }
+.setup-error { background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; color: #b91c1c; font-size: .86rem; margin: 14px 0 0; padding: 10px 12px; }
+@media (max-width: 620px) { .quick-start-section > .primary-action { position: static; margin-top: 18px; } .mode-grid { grid-template-columns: 1fr; } .session-metrics { width: 100%; justify-content: space-between; } .setup-modal { padding: 27px 22px; } }

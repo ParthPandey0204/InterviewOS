@@ -236,7 +236,12 @@ export const listUserSessions = async (userId: string) => {
   return prisma.session.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
-    select: sessionSelect
+    select: {
+      ...sessionSelect,
+      topicStats: {
+        select: { score: true }
+      }
+    }
   });
 };
 
