@@ -5,6 +5,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { Dashboard } from "./pages/Dashboard";
+import { InterviewRoom } from "./pages/InterviewRoom";
 import "./styles.css";
 
 export function App() {
@@ -17,6 +18,7 @@ export function App() {
 
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/sessions/:id" element={<InterviewRoom />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

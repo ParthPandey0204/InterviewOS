@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { apiRequest } from "../api/client";
 
@@ -16,6 +17,7 @@ type Session = {
 
 export const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [isSetupOpen, setIsSetupOpen] = useState(false);
@@ -56,6 +58,7 @@ export const Dashboard: React.FC = () => {
       });
       setSessions((current) => [result.session, ...current]);
       setIsSetupOpen(false);
+      navigate(`/sessions/${result.session.id}`);
     } catch (error) {
       setSetupError(error instanceof Error ? error.message : "Unable to start your session.");
     } finally {
@@ -93,7 +96,7 @@ export const Dashboard: React.FC = () => {
 
           <section className="sessions-panel">
             <div className="sessions-heading"><div><p className="section-kicker">Practice history</p><h2>Past sessions</h2></div><span className="session-count">{sessions.length} total</span></div>
-            {loadingSessions ? <p className="session-state">Loading sessions...</p> : sessions.length === 0 ? <p className="session-state">No interview sessions yet. Start one above and your progress will appear here.</p> : <div className="sessions-list">{sessions.map((s) => <article key={s.id} className="session-row"><div><strong>{s.mode} interview</strong><p>{s.difficulty.toLowerCase()} difficulty{s.targetCompany && ` · ${s.targetCompany}`}</p></div><div className="session-metrics"><span className="score-pill">{formatScore(s)}</span><time>{new Date(s.createdAt).toLocaleDateString()}</time></div></article>)}</div>}
+            {loadingSessions ? <p className="session-state">Loading sessions...</p> : sessions.length === 0 ? <p className="session-state">No interview sessions yet. Start one above and your progress will appear here.</p> : <div className="sessions-list">{sessions.map((s) => <article key={s.id} className="session-row"><div><strong>{s.mode} interview</strong><p>{s.difficulty.toLowerCase()} difficulty{s.targetCompany && ` · ${s.targetCompany}`}</p></div><div className="session-metrics"><span className="score-pill">{formatScore(s)}</span><time>{new Date(s.createdAt).toLocaleDateString()}</time><button className="resume-button" onClick={() => navigate(`/sessions/${s.id}`)}>Open</button></div></article>)}</div>}
           </section>
         </main>
       </div>
