@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { apiRequest } from "../api/client";
 
@@ -76,8 +76,12 @@ export const Dashboard: React.FC = () => {
     <div className="dashboard-page">
       <div className="dashboard-shell">
         <header className="dashboard-header">
-          <div className="dashboard-brand" aria-label="InterviewOS"><span>Interview</span><strong>OS</strong></div>
-          <div className="user-badge"><div className="avatar">{user?.name ? user.name[0].toUpperCase() : user?.email[0].toUpperCase()}</div><div className="user-info"><h3>{user?.name || "Candidate"}</h3><p>{user?.email}</p></div></div>
+          <div className="dashboard-brand" aria-label="InterviewOS" style={{ cursor: 'pointer' }}><span>Interview</span><strong>OS</strong></div>
+          <div className="header-links">
+            <Link to="/" className="header-link active">Dashboard</Link>
+            <Link to="/analytics" className="header-link">Analytics</Link>
+          </div>
+          <div className="user-badge" style={{ marginLeft: 'auto' }}><div className="avatar">{user?.name ? user.name[0].toUpperCase() : user?.email[0].toUpperCase()}</div><div className="user-info"><h3>{user?.name || "Candidate"}</h3><p>{user?.email}</p></div></div>
           <button onClick={logout} className="btn-secondary">Sign out</button>
         </header>
 
@@ -96,7 +100,7 @@ export const Dashboard: React.FC = () => {
 
           <section className="sessions-panel">
             <div className="sessions-heading"><div><p className="section-kicker">Practice history</p><h2>Past sessions</h2></div><span className="session-count">{sessions.length} total</span></div>
-            {loadingSessions ? <p className="session-state">Loading sessions...</p> : sessions.length === 0 ? <p className="session-state">No interview sessions yet. Start one above and your progress will appear here.</p> : <div className="sessions-list">{sessions.map((s) => <article key={s.id} className="session-row"><div><strong>{s.mode} interview</strong><p>{s.difficulty.toLowerCase()} difficulty{s.targetCompany && ` · ${s.targetCompany}`}</p></div><div className="session-metrics"><span className="score-pill">{formatScore(s)}</span><time>{new Date(s.createdAt).toLocaleDateString()}</time><button className="resume-button" onClick={() => navigate(`/sessions/${s.id}`)}>Open</button></div></article>)}</div>}
+            {loadingSessions ? <p className="session-state">Loading sessions...</p> : sessions.length === 0 ? <p className="session-state">No interview sessions yet. Start one above and your progress will appear here.</p> : <div className="sessions-list">{sessions.map((s) => <article key={s.id} className="session-row"><div><strong>{s.mode} interview</strong><p>{s.difficulty.toLowerCase()} difficulty{s.targetCompany && ` · ${s.targetCompany}`}</p></div><div className="session-metrics"><span className="score-pill">{formatScore(s)}</span><time>{new Date(s.createdAt).toLocaleDateString()}</time><button className="resume-button" onClick={() => navigate(formatScore(s) !== "Not scored" ? `/sessions/${s.id}/replay` : `/sessions/${s.id}`)}>{formatScore(s) !== "Not scored" ? "Review" : "Open"}</button></div></article>)}</div>}
           </section>
         </main>
       </div>

@@ -47,6 +47,13 @@ export const listUserSessions = asyncHandler(async (request: Request, response: 
   response.json({ sessions });
 });
 
+export const getAnalytics = asyncHandler(async (request: Request, response: Response) => {
+  const userId = requireUserId(request);
+  const analytics = await sessionService.getAnalytics(userId);
+
+  response.json(analytics);
+});
+
 export const createTurn = asyncHandler(async (request: Request, response: Response) => {
   const userId = requireUserId(request);
   const sessionId = requireSessionId(request);

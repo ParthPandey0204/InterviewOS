@@ -245,6 +245,56 @@ export const listUserSessions = async (userId: string) => {
   });
 };
 
+export const getAnalytics = async (userId: string) => {
+  const sessions = await prisma.session.findMany({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      mode: true,
+      createdAt: true,
+      topicStats: {
+        select: { score: true }
+      }
+    }
+  });
+
+  const topicStats = await prisma.topicStats.findMany({
+    where: { session: { userId } },
+    select: { topic: true, score: true }
+  });
+
+  // Calculate topic-wise averages
+  const topicMap = new Map<string, { total: number; count: number }>();
+  for (const stat of topicStats) {
+    if (stat.score !== null) {
+      const current = topicMap.get(stat.topic) || { total: 0, count: 0 };
+      topicMap.set(stat.topic, { total: current.total + stat.score, count: current.count + 1 });
+    }
+  }
+
+  const topicAverages = Array.from(topicMap.entries()).map(([topic, data]) => ({
+    topic,
+    averageScore: Math.round((data.total / data.count) * 20) // Assuming max score is 5, scale to 100
+  }));
+
+  // Calculate session scores over time
+  const sessionsOverTime = sessions.map(session => {
+    const scores = session.topicStats.map(s => s.score).filter((s): s is number => s !== null);
+    const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+    return {
+      date: session.createdAt.toISOString().split("T")[0],
+      score: Math.round(avg * 20),
+      mode: session.mode
+    };
+  });
+
+  return {
+    topicAverages,
+    sessionsOverTime
+  };
+};
+
 export const createTurn = async (
   userId: string,
   sessionId: string,
