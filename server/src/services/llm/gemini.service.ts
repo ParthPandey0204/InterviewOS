@@ -108,6 +108,28 @@ const toGeminiBody = (request: LLMGenerateRequest) => {
   };
 };
 
+const eventsFromBuffer = (buffer: string) => {
+  const events = buffer.split(/\r?\n\r?\n/);
+  return {
+    events: events.slice(0, -1),
+    remainder: events.at(-1) ?? ""
+  };
+};
+
+const eventPayload = (event: string) => {
+  const data = event
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice(5).trim())
+    .join("\n");
+
+  if (!data || data === "[DONE]") {
+    return undefined;
+  }
+
+  return JSON.parse(data) as unknown;
+};
+
 async function* sseJson(response: Response): AsyncIterable<unknown> {
   if (!response.body) {
     return;
@@ -126,23 +148,17 @@ async function* sseJson(response: Response): AsyncIterable<unknown> {
       }
 
       buffer += decoder.decode(value, { stream: true });
-      const events = buffer.split("\n\n");
-      buffer = events.pop() ?? "";
+      const { events, remainder } = eventsFromBuffer(buffer);
+      buffer = remainder;
 
       for (const event of events) {
-        const data = event
-          .split("\n")
-          .filter((line) => line.startsWith("data:"))
-          .map((line) => line.slice(5).trim())
-          .join("\n");
-
-        if (!data || data === "[DONE]") {
-          continue;
-        }
-
-        yield JSON.parse(data) as unknown;
+        const payload = eventPayload(event);
+        if (payload) yield payload;
       }
     }
+
+    const payload = eventPayload(buffer);
+    if (payload) yield payload;
   } finally {
     reader.releaseLock();
   }
