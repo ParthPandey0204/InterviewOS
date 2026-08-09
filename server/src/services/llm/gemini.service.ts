@@ -1,5 +1,6 @@
 import { config } from "../../config.js";
 import { ensureOk, requireApiKey } from "./http.js";
+import { GroqService } from "./groq.service.js";
 import type {
   LLMGenerateRequest,
   LLMGenerateResult,
@@ -9,6 +10,9 @@ import type {
 } from "./types.js";
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
+
+const isQuotaError = (error: unknown) =>
+  error instanceof Error && (error.message.includes("status 429") || error.message.includes("RESOURCE_EXHAUSTED"));
 
 type GeminiServiceOptions = {
   apiKey?: string;
@@ -187,7 +191,14 @@ export class GeminiService implements LLMService {
       }
     );
 
-    await ensureOk(response, "Gemini");
+    try {
+      await ensureOk(response, "Gemini");
+    } catch (error) {
+      if (isQuotaError(error) && config.llm.groq.apiKey) {
+        return new GroqService().generate(request);
+      }
+      throw error;
+    }
     const payload = (await response.json()) as unknown;
 
     return {
@@ -211,7 +222,15 @@ export class GeminiService implements LLMService {
       }
     );
 
-    await ensureOk(response, "Gemini");
+    try {
+      await ensureOk(response, "Gemini");
+    } catch (error) {
+      if (isQuotaError(error) && config.llm.groq.apiKey) {
+        yield* new GroqService().generateStream(request);
+        return;
+      }
+      throw error;
+    }
 
     let emittedText = false;
 

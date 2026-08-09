@@ -3,7 +3,7 @@ import { config } from "../config.js";
 import { HttpError } from "../middleware/error.js";
 import { prisma } from "../prisma/client.js";
 import { evaluateAnswer } from "./answer-evaluation.service.js";
-import { buildNextQuestionMessages } from "./interview-prompts.service.js";
+import { buildInterviewerSystemPrompt, buildNextQuestionMessages } from "./interview-prompts.service.js";
 import { createLLMService, type LLMGenerateResult, type LLMProvider } from "./llm/index.js";
 import { defaultModelForProvider, logUsage } from "./usage-log.service.js";
 
@@ -384,6 +384,46 @@ export const createTurn = async (
     turn: userTurn,
     nextQuestion: assistantTurn
   };
+};
+
+export const startSessionStream = async (userId: string, sessionId: string) => {
+  const provider = normalizeProvider(undefined);
+  const model = defaultModelForProvider(provider);
+  const session = await getActiveSessionForTurn(userId, sessionId);
+
+  if (session.turns.length > 0) {
+    throw new HttpError(409, "This interview session has already started");
+  }
+
+  const llm = createLLMService(provider);
+  const providerStream = llm.generateStream({
+    messages: [
+      { role: "system", content: buildInterviewerSystemPrompt(session) },
+      { role: "user", content: "Begin the interview with the first question." }
+    ],
+    options: { temperature: 0.7, maxTokens: 300 }
+  });
+
+  return {
+    provider,
+    stream: providerStream,
+    commit: async (questionContent: string) => {
+      const question = questionContent.trim();
+      if (!question) throw new HttpError(502, "LLM returned an empty opening question");
+      const turn = await prisma.turn.create({
+        data: { sessionId, role: TurnRole.ASSISTANT, content: question, position: 0, metadata: { provider, model } },
+        select: turnSelect
+      });
+      return { turn };
+    }
+  };
+};
+
+export const completeSession = async (userId: string, sessionId: string) => {
+  const session = await prisma.session.findFirst({ where: { id: sessionId, userId }, select: { id: true, status: true } });
+  if (!session) throw new HttpError(404, "Session not found");
+  if (session.status !== SessionStatus.ACTIVE) throw new HttpError(409, "Session is already complete");
+  return prisma.session.update({ where: { id: sessionId }, data: { status: SessionStatus.COMPLETED, endedAt: new Date() }, select: sessionSelect });
 };
 
 export const createTurnStream = async (

@@ -9,5 +9,7 @@ sessionRouter.post("/", sessionController.createSession);
 sessionRouter.get("/", sessionController.listUserSessions);
 sessionRouter.get("/analytics", sessionController.getAnalytics);
 sessionRouter.post("/:id/turns", sessionController.createTurn);
+sessionRouter.post("/:id/start/stream", sessionController.startSessionStream);
 sessionRouter.post("/:id/turns/stream", sessionController.createTurnStream);
+sessionRouter.post("/:id/complete", sessionController.completeSession);
 sessionRouter.get("/:id", sessionController.getSessionById);

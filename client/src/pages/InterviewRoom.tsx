@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { apiRequest } from "../api/client";
 import { getAccessToken } from "../api/client";
 import { ScoreCard, type EvaluationScores } from "../components/ScoreCard";
 
@@ -20,6 +21,7 @@ const parseEvents = (buffer: string) => {
 
 export const InterviewRoom: React.FC = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
   const [answer, setAnswer] = useState("");
   const [submittedAnswer, setSubmittedAnswer] = useState<string | null>(null);
@@ -27,6 +29,8 @@ export const InterviewRoom: React.FC = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scores, setScores] = useState<EvaluationScores | null>(null);
+  const [startingQuestion, setStartingQuestion] = useState(false);
+  const [endingSession, setEndingSession] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -42,6 +46,23 @@ export const InterviewRoom: React.FC = () => {
     })();
   }, [id]);
 
+  useEffect(() => {
+    if (!session || session.turns.length > 0 || startingQuestion || error || !id) return;
+    const startInterview = async () => {
+      setStartingQuestion(true); setStreamingQuestion(""); setError(null);
+      try {
+        const response = await fetch(`${API_BASE}/api/sessions/${id}/start/stream`, { method: "POST", headers: { Authorization: `Bearer ${getAccessToken()}` }, credentials: "include" });
+        if (!response.ok || !response.body) throw new Error("Unable to start the interview.");
+        const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = "";
+        const consume = (message: string) => { const name = message.split(/\r?\n/).find((line) => line.startsWith("event:"))?.slice(6).trim(); const line = message.split(/\r?\n/).find((item) => item.startsWith("data:")); if (!line) return; const payload = JSON.parse(line.slice(5).trim()); if (name === "delta") setStreamingQuestion((current) => current + payload.content); if (name === "done") setSession((current) => current ? { ...current, turns: [payload.turn] } : current); if (name === "error") throw new Error(payload.message || "Unable to start the interview."); };
+        while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const { complete, remainder } = parseEvents(buffer); buffer = remainder; complete.forEach(consume); }
+        if (buffer.trim()) consume(buffer);
+      } catch (startError) { setError(startError instanceof Error ? startError.message : "Unable to start the interview."); }
+      finally { setStartingQuestion(false); }
+    };
+    void startInterview();
+  }, [id, session, startingQuestion, error]);
+
   const { questionPrompt, interviewerResponse } = useMemo(() => {
     const turns = session?.turns || [];
     const lastUserIndex = turns.map((turn) => turn.role).lastIndexOf("USER");
@@ -53,12 +74,19 @@ export const InterviewRoom: React.FC = () => {
       : undefined;
 
     return {
-      questionPrompt: questionBeforeLatestAnswer || (session ? starterQuestion(session.mode) : ""),
+      questionPrompt: !submittedAnswer && streamingQuestion ? streamingQuestion : questionBeforeLatestAnswer || (session ? starterQuestion(session.mode) : ""),
       interviewerResponse: submittedAnswer
         ? (isStreaming ? streamingQuestion || null : savedResponse || null)
         : null
     };
   }, [session, streamingQuestion, submittedAnswer, isStreaming]);
+
+  const endSession = async () => {
+    if (!id || endingSession) return;
+    setEndingSession(true); setError(null);
+    try { await apiRequest(`/api/sessions/${id}/complete`, { method: "POST" }); navigate("/"); }
+    catch (endError) { setError(endError instanceof Error ? endError.message : "Unable to end this session."); setEndingSession(false); }
+  };
 
   const submitAnswer = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -87,5 +115,5 @@ export const InterviewRoom: React.FC = () => {
 
   if (!session && !error) return <div className="room-page room-loading">Loading your interview room...</div>;
   if (!session) return <div className="room-page room-loading"><p>{error}</p><Link to="/">Return to dashboard</Link></div>;
-  return <div className="room-page"><header className="room-header"><Link to="/" className="back-link">← Dashboard</Link><div><strong>{session.mode} interview</strong><span>{session.difficulty.toLowerCase()} difficulty{session.targetCompany && ` · ${session.targetCompany}`}</span></div></header><main className="room-layout"><section className="interview-panel"><div className="question-box"><p className="section-kicker">Interviewer question</p><h1>{questionPrompt}</h1></div>{(interviewerResponse || isStreaming) && <article className="interviewer-response"><p className="section-kicker">Interviewer response</p><p>{interviewerResponse || "Preparing the next question..."}</p>{isStreaming && <span className="streaming-indicator">Generating...</span>}</article>}<form className="answer-composer" onSubmit={submitAnswer}><label htmlFor="answer">Your next answer</label><textarea id="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Think aloud, explain your reasoning, and mention any trade-offs…" disabled={isStreaming} required /><div className="answer-actions"><span>{answer.trim().split(/\s+/).filter(Boolean).length} words</span><button className="primary-action" disabled={isStreaming || !answer.trim()}>{isStreaming ? "Interviewing…" : "Submit answer"}</button></div></form>{error && <p className="room-error">{error}</p>}</section>{scores ? <ScoreCard scores={scores} /> : <aside className="room-tip"><p className="section-kicker">Interview tip</p><h3>Make your thinking visible</h3><p>Lead with your approach, then explain trade-offs and edge cases. This gives the interviewer a clearer signal.</p></aside>}</main></div>;
+  return <div className="room-page"><header className="room-header"><Link to="/" className="back-link">← Dashboard</Link><div><strong>{session.mode} interview</strong><span>{session.difficulty.toLowerCase()} difficulty{session.targetCompany && ` · ${session.targetCompany}`}</span></div><button className="btn-secondary end-session" onClick={() => void endSession()} disabled={endingSession}>{endingSession ? "Ending…" : "End session"}</button></header><main className="room-layout"><section className="interview-panel"><div className="question-box"><p className="section-kicker">Interviewer question</p><h1>{questionPrompt}</h1>{startingQuestion && <span className="streaming-indicator">Your interviewer is preparing a question…</span>}</div>{(interviewerResponse || isStreaming) && <article className="interviewer-response"><p className="section-kicker">Interviewer response</p><p>{interviewerResponse || "Preparing the next question..."}</p>{isStreaming && <span className="streaming-indicator">Generating...</span>}</article>}<form className="answer-composer" onSubmit={submitAnswer}><label htmlFor="answer">Your next answer</label><textarea id="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Think aloud, explain your reasoning, and mention any trade-offs…" disabled={isStreaming || startingQuestion} required /><div className="answer-actions"><span>{answer.trim().split(/\s+/).filter(Boolean).length} words</span><button className="primary-action" disabled={isStreaming || startingQuestion || !answer.trim()}>{isStreaming ? "Interviewing…" : "Submit answer"}</button></div></form>{error && <p className="room-error">{error}</p>}</section>{scores ? <ScoreCard scores={scores} /> : <aside className="room-tip"><p className="section-kicker">Interview tip</p><h3>Make your thinking visible</h3><p>Lead with your approach, then explain trade-offs and edge cases. This gives the interviewer a clearer signal.</p></aside>}</main></div>;
 };

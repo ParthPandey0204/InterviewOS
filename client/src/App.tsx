@@ -8,12 +8,14 @@ import { Dashboard } from "./pages/Dashboard";
 import { InterviewRoom } from "./pages/InterviewRoom";
 import { Analytics } from "./pages/Analytics";
 import { SessionReplay } from "./pages/SessionReplay";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./styles.css";
 
 export function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <ErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -27,8 +29,9 @@ export function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+        </BrowserRouter>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

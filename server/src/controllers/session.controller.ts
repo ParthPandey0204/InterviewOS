@@ -91,3 +91,23 @@ export const createTurnStream = asyncHandler(async (request: Request, response: 
     response.end();
   }
 });
+
+export const startSessionStream = asyncHandler(async (request: Request, response: Response) => {
+  const turnStream = await sessionService.startSessionStream(requireUserId(request), requireSessionId(request));
+  let question = "";
+  response.status(200).setHeader("Content-Type", "text/event-stream");
+  response.setHeader("Cache-Control", "no-cache, no-transform");
+  response.setHeader("Connection", "keep-alive");
+  response.flushHeaders?.();
+  try {
+    for await (const chunk of turnStream.stream) { question += chunk; writeSse(response, "delta", { content: chunk }); }
+    writeSse(response, "done", await turnStream.commit(question));
+  } catch (error) {
+    writeSse(response, "error", { message: error instanceof Error ? error.message : "Unable to start interview" });
+  } finally { response.end(); }
+});
+
+export const completeSession = asyncHandler(async (request: Request, response: Response) => {
+  const session = await sessionService.completeSession(requireUserId(request), requireSessionId(request));
+  response.json({ session });
+});

@@ -20,6 +20,7 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [isSetupOpen, setIsSetupOpen] = useState(false);
   const [mode, setMode] = useState(modes[0]);
   const [difficulty, setDifficulty] = useState("MEDIUM");
@@ -34,6 +35,7 @@ export const Dashboard: React.FC = () => {
         setSessions(res.sessions || []);
       } catch (e) {
         console.error("Failed to load sessions", e);
+        setSessionsError(e instanceof Error ? e.message : "Unable to load your sessions.");
       } finally {
         setLoadingSessions(false);
       }
@@ -102,6 +104,7 @@ export const Dashboard: React.FC = () => {
 
           <section className="sessions-panel">
             <div className="sessions-heading"><div><p className="section-kicker">Practice history</p><h2>Past sessions</h2></div><span className="session-count">{sessions.length} total</span></div>
+            {sessionsError && <div className="inline-state error-state"><span>{sessionsError}</span><button className="resume-button" onClick={() => window.location.reload()}>Try again</button></div>}
             {loadingSessions ? <p className="session-state">Loading sessions...</p> : sessions.length === 0 ? <p className="session-state">No interview sessions yet. Start one above and your progress will appear here.</p> : <div className="sessions-list">{sessions.map((s) => <article key={s.id} className="session-row"><div><strong>{s.mode} interview</strong><p>{s.difficulty.toLowerCase()} difficulty{s.targetCompany && ` · ${s.targetCompany}`}</p></div><div className="session-metrics"><span className="score-pill">{formatScore(s)}</span><time>{new Date(s.createdAt).toLocaleDateString()}</time><button className="resume-button" onClick={() => navigate(formatScore(s) !== "Not scored" ? `/sessions/${s.id}/replay` : `/sessions/${s.id}`)}>{formatScore(s) !== "Not scored" ? "Review" : "Open"}</button></div></article>)}</div>}
           </section>
         </main>

@@ -37,7 +37,7 @@ export const SessionReplay: React.FC = () => {
       
       <main className="replay-layout">
         <div className="transcript-container">
-          {session.turns.map((turn, index) => {
+          {session.turns.length === 0 ? <div className="empty-state"><h3>No answers recorded yet</h3><p>Open this session and submit an answer to begin its transcript.</p></div> : session.turns.map((turn, index) => {
             const nextTurn = session.turns[index + 1];
             // If it's a USER turn, look for the evaluation in its metadata
             const evaluation = turn.role === "USER" ? turn.metadata?.evaluation : null;

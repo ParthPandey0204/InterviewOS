@@ -36,7 +36,7 @@ export async function apiRequest<T = any>(
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const error = new Error(data.message || `Request failed with status ${response.status}`);
+    const error = new Error(data.error?.message || data.message || `Request failed with status ${response.status}`);
     (error as any).status = response.status;
     (error as any).data = data;
     throw error;

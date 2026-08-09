@@ -17,6 +17,7 @@ export const Analytics: React.FC = () => {
   const navigate = useNavigate();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadAnalytics() {
@@ -25,6 +26,7 @@ export const Analytics: React.FC = () => {
         setData(res);
       } catch (e) {
         console.error("Failed to load analytics", e);
+        setError(e instanceof Error ? e.message : "Unable to load analytics.");
       } finally {
         setLoading(false);
       }
@@ -58,7 +60,9 @@ export const Analytics: React.FC = () => {
           <h1>Analytics & Progress</h1>
           <p className="dashboard-lede">Track your performance over time and identify areas for improvement.</p>
 
-          {loading ? (
+          {error ? (
+            <div className="inline-state error-state"><span>{error}</span><button className="resume-button" onClick={() => window.location.reload()}>Try again</button></div>
+          ) : loading ? (
             <p className="session-state">Loading your analytics...</p>
           ) : !data || (data.topicAverages.length === 0 && data.sessionsOverTime.length === 0) ? (
             <p className="session-state">Not enough data to display analytics. Complete a few interview sessions first!</p>
