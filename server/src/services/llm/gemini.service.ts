@@ -213,12 +213,22 @@ export class GeminiService implements LLMService {
 
     await ensureOk(response, "Gemini");
 
+    let emittedText = false;
+
     for await (const payload of sseJson(response)) {
       const text = firstCandidateText(payload);
 
       if (text) {
+        emittedText = true;
         yield text;
       }
+    }
+
+    // Some Gemini models complete successfully without emitting SSE text chunks.
+    // Fall back to the non-streaming endpoint so the interview can still progress.
+    if (!emittedText) {
+      const result = await this.generate(request);
+      if (result.content) yield result.content;
     }
   }
 }

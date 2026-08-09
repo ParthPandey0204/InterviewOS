@@ -12,7 +12,7 @@ type Session = {
   difficulty: string;
   targetCompany: string | null;
   createdAt: string;
-  topicStats: Array<{ score: number | null }>;
+  topicStats?: Array<{ score: number | null }>;
 };
 
 export const Dashboard: React.FC = () => {
@@ -67,7 +67,9 @@ export const Dashboard: React.FC = () => {
   };
 
   const formatScore = (session: Session) => {
-    const scores = session.topicStats.map((stat) => stat.score).filter((score): score is number => score !== null);
+    const scores = (session.topicStats ?? [])
+      .map((stat) => stat.score)
+      .filter((score): score is number => score !== null);
     if (!scores.length) return "Not scored";
     return `${Math.round((scores.reduce((total, score) => total + score, 0) / scores.length) * 20)}%`;
   };
