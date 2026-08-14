@@ -22,7 +22,7 @@ export const Analytics: React.FC = () => {
   useEffect(() => {
     async function loadAnalytics() {
       try {
-        const res = await apiRequest<AnalyticsData>("/api/analytics");
+        const res = await apiRequest<AnalyticsData>("/api/sessions/analytics");
         setData(res);
       } catch (e) {
         console.error("Failed to load analytics", e);
