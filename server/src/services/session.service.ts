@@ -4,7 +4,7 @@ import { HttpError } from "../middleware/error.js";
 import { prisma } from "../prisma/client.js";
 import { evaluateAnswer } from "./answer-evaluation.service.js";
 import { buildInterviewerSystemPrompt, buildNextQuestionMessages } from "./interview-prompts.service.js";
-import { createLLMService, type LLMGenerateResult, type LLMProvider } from "./llm/index.js";
+import { createLLMService, type LLMGenerateRequest, type LLMGenerateResult, type LLMProvider } from "./llm/index.js";
 import { defaultModelForProvider, logUsage } from "./usage-log.service.js";
 import { indexQuestion } from "./question-embedding.service.js";
 
@@ -407,17 +407,24 @@ export const startSessionStream = async (userId: string, sessionId: string) => {
   }
 
   const llm = createLLMService(provider);
-  const providerStream = llm.generateStream({
+  const questionRequest: LLMGenerateRequest = {
     messages: [
       { role: "system", content: buildInterviewerSystemPrompt(session) },
       { role: "user", content: "Begin the interview with the first question." }
     ],
     options: { temperature: 0.7, maxTokens: 300 }
-  });
+  };
+
+  // Gemini's streaming endpoint can terminate after a partial candidate. Use
+  // the complete-response endpoint so only a complete question is persisted.
+  async function* questionStream() {
+    const result = await llm.generate(questionRequest);
+    if (result.content) yield result.content;
+  }
 
   return {
     provider,
-    stream: providerStream,
+    stream: questionStream(),
     commit: async (questionContent: string) => {
       const question = questionContent.trim();
       if (!question) throw new HttpError(502, "LLM returned an empty opening question");
@@ -465,20 +472,21 @@ export const createTurnStream = async (
     return null;
   });
 
-  const providerStream = llm.generateStream({
+  const questionRequest = {
     messages: buildNextQuestionMessages(session, session.turns, answer),
     options: {
       temperature: 0.7,
       maxTokens: 300
     }
-  });
+  };
 
   async function* stream() {
     const startedAt = Date.now();
 
     try {
-      for await (const chunk of providerStream) {
-        yield chunk;
+      const result = await llm.generate(questionRequest);
+      if (result.content) {
+        yield result.content;
       }
 
       await logUsage({
