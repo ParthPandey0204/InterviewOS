@@ -6,6 +6,7 @@ import { evaluateAnswer } from "./answer-evaluation.service.js";
 import { buildInterviewerSystemPrompt, buildNextQuestionMessages } from "./interview-prompts.service.js";
 import { createLLMService, type LLMGenerateResult, type LLMProvider } from "./llm/index.js";
 import { defaultModelForProvider, logUsage } from "./usage-log.service.js";
+import { indexQuestion } from "./question-embedding.service.js";
 
 type CreateSessionInput = {
   mode?: unknown;
@@ -131,6 +132,9 @@ const getActiveSessionForTurn = async (
 };
 
 const persistTurnPair = async (input: {
+  userId: string;
+  mode: string;
+  difficulty: QuestionDifficulty;
   sessionId: string;
   answer: string;
   nextQuestion: string;
@@ -175,6 +179,10 @@ const persistTurnPair = async (input: {
     await tx.session.update({
       where: { id: input.sessionId },
       data: { updatedAt: new Date() }
+    });
+
+    void indexQuestion({ userId: input.userId, prompt: input.nextQuestion, mode: input.mode, difficulty: input.difficulty }).catch(error => {
+      console.error("Question embedding failed", error);
     });
 
     return [createdUserTurn, createdAssistantTurn] as const;
@@ -371,6 +379,9 @@ export const createTurn = async (
   }
 
   const [userTurn, assistantTurn] = await persistTurnPair({
+    userId,
+    mode: session.mode,
+    difficulty: session.difficulty,
     sessionId,
     answer,
     nextQuestion,
@@ -413,6 +424,9 @@ export const startSessionStream = async (userId: string, sessionId: string) => {
       const turn = await prisma.turn.create({
         data: { sessionId, role: TurnRole.ASSISTANT, content: question, position: 0, metadata: { provider, model } },
         select: turnSelect
+      });
+      void indexQuestion({ userId, prompt: question, mode: session.mode, difficulty: session.difficulty }).catch(error => {
+        console.error("Question embedding failed", error);
       });
       return { turn };
     }
@@ -507,6 +521,9 @@ export const createTurnStream = async (
       const evaluationResult = await evaluationPromise;
 
       const [userTurn, assistantTurn] = await persistTurnPair({
+        userId,
+        mode: session.mode,
+        difficulty: session.difficulty,
         sessionId,
         answer,
         nextQuestion,
