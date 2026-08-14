@@ -215,7 +215,17 @@ body { min-height: 100vh; -webkit-font-smoothing: antialiased; background: var(-
   transition: all .2s; 
   position: relative;
   overflow: hidden;
-  height: 200px;
+  min-height: 210px;
+}
+
+/* Keep real content above the decorative graphic, and keep the graphic
+   out of the text column so long copy (e.g. "Technical") never collides with it */
+.mode-card > .mode-icon,
+.mode-card > strong,
+.mode-card > p,
+.mode-card > .mode-start {
+  position: relative;
+  z-index: 1;
 }
 .mode-card:hover { 
   border-color: #c0cfc3; 
@@ -247,7 +257,7 @@ body { min-height: 100vh; -webkit-font-smoothing: antialiased; background: var(-
   line-height: 1.5; 
   font-size: 0.9rem;
   margin: 0;
-  max-width: 85%;
+  max-width: 62%;
 }
 
 .mode-start {
@@ -263,10 +273,11 @@ body { min-height: 100vh; -webkit-font-smoothing: antialiased; background: var(-
 /* Card Graphics Placeholder */
 .card-graphic {
   position: absolute;
-  right: -10px;
-  bottom: 20px;
-  opacity: 0.8;
+  right: -16px;
+  bottom: -8px;
+  opacity: 0.55;
   pointer-events: none;
+  z-index: 0;
 }
 
 /* Sessions Panel */

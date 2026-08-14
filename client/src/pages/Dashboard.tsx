@@ -125,13 +125,27 @@ export const Dashboard: React.FC = () => {
               <p className="dashboard-lede">Choose a focused interview mode, tailor the difficulty, and build confidence session by session.</p>
             </div>
             <div className="hero-illustration">
-               {/* Decorative elements to suggest the mountain/target from the mockup */}
-               <svg width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="none">
-                 <path d="M0,200 L100,100 L200,150 L350,50 L400,80 L400,200 Z" fill="rgba(145, 183, 149, 0.2)" />
-                 <path d="M150,200 L250,120 L320,160 L400,90 L400,200 Z" fill="rgba(145, 183, 149, 0.3)" />
-                 <circle cx="280" cy="80" r="30" fill="none" stroke="#639b6d" strokeWidth="8" />
-                 <circle cx="280" cy="80" r="15" fill="#639b6d" />
-                 <line x1="240" y1="120" x2="280" y2="80" stroke="#4a7a52" strokeWidth="4" />
+               {/* Mountain climb with a flagged summit, a winding path, an ascending
+                   progress chart, and an archery target — echoes "practice toward a goal" */}
+               <svg width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid meet">
+                 {/* back mountain range */}
+                 <path d="M60,200 L160,90 L230,140 L320,50 L400,90 L400,200 Z" fill="rgba(145, 183, 149, 0.35)" />
+                 {/* front mountain range */}
+                 <path d="M180,200 L260,110 L310,150 L380,70 L400,100 L400,200 Z" fill="rgba(99, 155, 109, 0.35)" />
+                 {/* winding path up to the summit */}
+                 <path d="M95,190 C150,162 178,150 218,122 C258,94 300,82 338,56" fill="none" stroke="#ffffff" strokeWidth="4" strokeDasharray="2 9" strokeLinecap="round" opacity="0.85" />
+                 {/* flag at the summit */}
+                 <line x1="338" y1="56" x2="338" y2="16" stroke="#2c5233" strokeWidth="3" strokeLinecap="round" />
+                 <path d="M338,16 L365,26 L338,36 Z" fill="#2c5233" />
+                 {/* ascending progress bars */}
+                 <rect x="238" y="152" width="14" height="43" rx="2" fill="#639b6d" opacity="0.7" />
+                 <rect x="258" y="130" width="14" height="65" rx="2" fill="#639b6d" opacity="0.85" />
+                 <rect x="278" y="104" width="14" height="91" rx="2" fill="#4a7a52" />
+                 {/* archery target hit dead-centre */}
+                 <circle cx="78" cy="112" r="34" fill="none" stroke="#639b6d" strokeWidth="7" />
+                 <circle cx="78" cy="112" r="20" fill="none" stroke="#639b6d" strokeWidth="7" />
+                 <circle cx="78" cy="112" r="7" fill="#4a7a52" />
+                 <line x1="33" y1="157" x2="70" y2="120" stroke="#2c5233" strokeWidth="4" strokeLinecap="round" />
                </svg>
             </div>
           </section>
