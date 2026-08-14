@@ -49,6 +49,10 @@ const firstCandidateText = (payload: unknown) => {
 
   const [candidate] = candidates;
 
+  if (typeof candidate === "object" && candidate !== null && (candidate as { finishReason?: unknown }).finishReason === "MAX_TOKENS") {
+    throw new Error("Gemini response was truncated (MAX_TOKENS)");
+  }
+
   if (typeof candidate !== "object" || candidate === null || !("content" in candidate)) {
     return "";
   }
@@ -84,7 +88,8 @@ const toGeminiRole = (role: LLMMessage["role"]) => {
   return role === "assistant" ? "model" : "user";
 };
 
-const toGeminiBody = (request: LLMGenerateRequest) => {
+const toGeminiBody = (request: LLMGenerateRequest, model: string) => {
+  const isGemini3 = model.startsWith("gemini-3");
   const systemMessages = request.messages.filter((message) => message.role === "system");
   const conversationMessages = request.messages.filter((message) => message.role !== "system");
 
@@ -101,13 +106,14 @@ const toGeminiBody = (request: LLMGenerateRequest) => {
         }
       : {}),
     generationConfig: {
-      ...(typeof request.options?.temperature === "number"
+      ...(!isGemini3 && typeof request.options?.temperature === "number"
         ? { temperature: request.options.temperature }
         : {}),
       ...(typeof request.options?.maxTokens === "number"
         ? { maxOutputTokens: request.options.maxTokens }
         : {}),
-      ...(request.options?.stop ? { stopSequences: request.options.stop } : {})
+      ...(request.options?.stop ? { stopSequences: request.options.stop } : {}),
+      ...(isGemini3 ? { thinkingConfig: { thinkingLevel: "low" } } : {})
     }
   };
 };
@@ -187,7 +193,7 @@ export class GeminiService implements LLMService {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(toGeminiBody(request))
+        body: JSON.stringify(toGeminiBody(request, model))
       }
     );
 
@@ -218,7 +224,7 @@ export class GeminiService implements LLMService {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(toGeminiBody(request))
+        body: JSON.stringify(toGeminiBody(request, model))
       }
     );
 

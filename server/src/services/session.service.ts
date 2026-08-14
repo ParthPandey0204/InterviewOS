@@ -325,8 +325,7 @@ export const createTurn = async (
       llm.generate({
         messages: buildNextQuestionMessages(session, session.turns, answer),
         options: {
-          temperature: 0.7,
-          maxTokens: 300
+          maxTokens: 600
         }
       }),
       evaluateAnswer({
@@ -412,7 +411,7 @@ export const startSessionStream = async (userId: string, sessionId: string) => {
       { role: "system", content: buildInterviewerSystemPrompt(session) },
       { role: "user", content: "Begin the interview with the first question." }
     ],
-    options: { temperature: 0.7, maxTokens: 300 }
+    options: { maxTokens: 600 }
   };
 
   // Gemini's streaming endpoint can terminate after a partial candidate. Use
@@ -475,8 +474,7 @@ export const createTurnStream = async (
   const questionRequest = {
     messages: buildNextQuestionMessages(session, session.turns, answer),
     options: {
-      temperature: 0.7,
-      maxTokens: 300
+      maxTokens: 600
     }
   };
 
