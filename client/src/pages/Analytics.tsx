@@ -10,6 +10,7 @@ import {
 type AnalyticsData = {
   topicAverages: Array<{ topic: string; averageScore: number }>;
   sessionsOverTime: Array<{ date: string; score: number; mode: string }>;
+  clusterInsights?: Array<{ clusterLabel: string; averageScore: number; questionCount: number; sessionCount: number }>;
 };
 
 export const Analytics: React.FC = () => {
@@ -59,6 +60,19 @@ export const Analytics: React.FC = () => {
           <div className="dashboard-eyebrow">Your insights</div>
           <h1>Analytics & Progress</h1>
           <p className="dashboard-lede">Track your performance over time and identify areas for improvement.</p>
+
+          {data?.clusterInsights && data.clusterInsights.length > 0 && (
+            <div className="insights-container" style={{ marginBottom: '2rem', padding: '1.5rem', backgroundColor: '#fff3e0', borderRadius: '8px', borderLeft: '4px solid #ff9800' }}>
+              <h3 style={{ color: '#e65100', marginTop: 0 }}>Areas for Improvement</h3>
+              <ul style={{ listStyleType: 'none', padding: 0, margin: 0 }}>
+                {data.clusterInsights.map((insight, idx) => (
+                  <li key={idx} style={{ marginBottom: '0.5rem', color: '#555' }}>
+                    <strong>Insight:</strong> You consistently score low on questions semantically close to <strong>"{insight.clusterLabel}"</strong>, even when phrased differently across {insight.sessionCount} sessions.
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {error ? (
             <div className="inline-state error-state"><span>{error}</span><button className="resume-button" onClick={() => window.location.reload()}>Try again</button></div>

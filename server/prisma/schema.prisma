@@ -52,6 +52,7 @@ model User {
   evalRuns      EvalRun[]
   usageLogs     UsageLog[]
   refreshTokens RefreshToken[]
+  clusterInsights UserClusterInsight[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 }
@@ -202,4 +203,18 @@ model UsageLog {
   @@index([userId])
   @@index([sessionId])
   @@index([provider])
+}
+
+model UserClusterInsight {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clusterLabel  String
+  averageScore  Float
+  questionCount Int
+  sessionCount  Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
 }

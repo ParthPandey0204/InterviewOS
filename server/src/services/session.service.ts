@@ -297,9 +297,17 @@ export const getAnalytics = async (userId: string) => {
     };
   });
 
+  // @ts-ignore - Ignore type error if prisma hasn't been generated yet
+  const clusterInsights = await prisma.userClusterInsight?.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    select: { clusterLabel: true, averageScore: true, questionCount: true, sessionCount: true }
+  }) || [];
+
   return {
     topicAverages,
-    sessionsOverTime
+    sessionsOverTime,
+    clusterInsights
   };
 };
 
