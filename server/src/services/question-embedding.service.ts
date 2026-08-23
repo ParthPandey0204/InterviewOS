@@ -23,6 +23,15 @@ export const indexQuestion = async (input: {
   mode: string;
   difficulty: "EASY" | "MEDIUM" | "HARD";
 }) => {
+  const existingQuestion = await prisma.questionBank.findFirst({
+    where: { createdById: input.userId, prompt: input.prompt },
+    select: { id: true }
+  });
+
+  if (existingQuestion) {
+    return existingQuestion;
+  }
+
   const extractor = await getExtractor();
   const output = await extractor(input.prompt, { pooling: "mean", normalize: true });
   const vector = Array.from(output.data);
@@ -47,4 +56,6 @@ export const indexQuestion = async (input: {
     `INSERT INTO "QuestionEmbedding" ("id", "questionId", "provider", "model", "dimensions", "embedding", "createdAt") VALUES ($1, $2, $3::"UsageProvider", $4, $5, $6::vector, $7)`,
     randomUUID(), question.id, "OTHER", MODEL, DIMENSIONS, `[${vector.join(",")}]`, new Date()
   );
+
+  return question;
 };

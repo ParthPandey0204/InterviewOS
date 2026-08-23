@@ -213,8 +213,11 @@ model UserClusterInsight {
   averageScore  Float
   questionCount Int
   sessionCount  Int
+  questionIds   String[] @default([])
+  lastResurfacedAt DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@index([userId])
+  @@index([userId, averageScore])
 }

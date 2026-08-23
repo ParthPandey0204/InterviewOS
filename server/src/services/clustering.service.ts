@@ -1,6 +1,17 @@
 import { prisma } from "../prisma/client.js";
+import { Prisma } from "@prisma/client";
 import { createLLMService } from "./llm/index.js";
 import { config } from "../config.js";
+import type { LLMProvider } from "./llm/index.js";
+
+type ClusterInsight = {
+  clusterLabel: string;
+  averageScore: number;
+  questionCount: number;
+  sessionCount: number;
+  questionIds: string[];
+  lastResurfacedAt?: Date | null;
+};
 
 // Helper to compute cosine similarity between two numeric arrays
 function cosineSimilarity(vecA: number[], vecB: number[]): number {
@@ -34,7 +45,7 @@ export async function runClusteringJob() {
     const users = await prisma.user.findMany({ select: { id: true } });
     
     for (const user of users) {
-      await clusterUserQuestions(user.id);
+      await refreshUserClusterInsights(user.id);
     }
     
     console.log("Background clustering job completed.");
@@ -43,7 +54,7 @@ export async function runClusteringJob() {
   }
 }
 
-async function clusterUserQuestions(userId: string) {
+export async function refreshUserClusterInsights(userId: string) {
   // Fetch eval runs for the user that have a questionId and a score
   const evalRuns = await prisma.evalRun.findMany({
     where: {
@@ -67,7 +78,7 @@ async function clusterUserQuestions(userId: string) {
   const embeddingsQuery = await prisma.$queryRaw<Array<{ questionId: string, embedding: string }>>`
     SELECT "questionId", embedding::text 
     FROM "QuestionEmbedding" 
-    WHERE "questionId" IN (${prisma.join(questionIds)})
+    WHERE "questionId" IN (${Prisma.join(questionIds)})
   `;
 
   const embeddingMap = new Map<string, number[]>();
@@ -133,8 +144,9 @@ async function clusterUserQuestions(userId: string) {
 
   if (clusters.length === 0) return;
 
-  const llm = createLLMService(config.llm.defaultProvider);
-  const newInsights = [];
+  const provider: LLMProvider = config.llm.defaultProvider === "groq" ? "groq" : "gemini";
+  const llm = createLLMService(provider);
+  const newInsights: ClusterInsight[] = [];
 
   for (const cluster of clusters) {
     const totalScore = cluster.reduce((sum, q) => sum + q.averageScore, 0);
@@ -164,7 +176,8 @@ async function clusterUserQuestions(userId: string) {
         clusterLabel,
         averageScore: avgScore,
         questionCount: cluster.length,
-        sessionCount
+        sessionCount,
+        questionIds: cluster.map((question) => question.questionId)
       });
     } catch (e) {
       console.error("Failed to generate cluster label with LLM", e);
@@ -174,15 +187,22 @@ async function clusterUserQuestions(userId: string) {
   if (newInsights.length > 0) {
     // Overwrite old insights for the user
     await prisma.$transaction(async (tx) => {
-      // @ts-ignore - Ignore type error if prisma hasn't been generated yet
-      await tx.userClusterInsight.deleteMany({ where: { userId } });
+      // Preserve the existing interval when the same conceptual cluster is
+      // recomputed with more evidence.
+      const clusterInsights = (tx as any).userClusterInsight;
+      const existingInsights: Array<{ clusterLabel: string; lastResurfacedAt: Date | null }> = await clusterInsights.findMany({
+        where: { userId },
+        select: { clusterLabel: true, lastResurfacedAt: true }
+      });
+      const lastResurfacedByLabel = new Map(existingInsights.map((insight) => [insight.clusterLabel, insight.lastResurfacedAt]));
+      await clusterInsights.deleteMany({ where: { userId } });
       
       for (const insight of newInsights) {
-        // @ts-ignore
-        await tx.userClusterInsight.create({
+        await clusterInsights.create({
           data: {
             userId,
-            ...insight
+            ...insight,
+            lastResurfacedAt: lastResurfacedByLabel.get(insight.clusterLabel) ?? null
           }
         });
       }

@@ -7,6 +7,9 @@ import { buildInterviewerSystemPrompt, buildNextQuestionMessages } from "./inter
 import { createLLMService, type LLMGenerateRequest, type LLMGenerateResult, type LLMProvider } from "./llm/index.js";
 import { defaultModelForProvider, logUsage } from "./usage-log.service.js";
 import { indexQuestion } from "./question-embedding.service.js";
+import { recordEvaluationHistory } from "./evaluation-history.service.js";
+import { selectConceptualReviewFocus } from "./conceptual-review.service.js";
+import { refreshUserClusterInsights } from "./clustering.service.js";
 
 type CreateSessionInput = {
   mode?: unknown;
@@ -479,8 +482,12 @@ export const createTurnStream = async (
     return null;
   });
 
+  const reviewFocus = await selectConceptualReviewFocus({
+    userId,
+    difficulty: session.difficulty
+  });
   const questionRequest = {
-    messages: buildNextQuestionMessages(session, session.turns, answer),
+    messages: buildNextQuestionMessages(session, session.turns, answer, reviewFocus),
     options: {
       maxTokens: 600
     }
@@ -533,6 +540,20 @@ export const createTurnStream = async (
       }
 
       const evaluationResult = await evaluationPromise;
+
+      if (evaluationResult?.scores) {
+        await recordEvaluationHistory({
+          userId,
+          sessionId,
+          question: previousQuestion,
+          mode: session.mode,
+          difficulty: session.difficulty,
+          provider: evaluationResult.provider,
+          model: evaluationResult.model,
+          scores: evaluationResult.scores
+        });
+        void refreshUserClusterInsights(userId);
+      }
 
       const [userTurn, assistantTurn] = await persistTurnPair({
         userId,

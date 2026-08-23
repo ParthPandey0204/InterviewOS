@@ -13,6 +13,8 @@ type ConversationTurn = {
   content: string;
 };
 
+type ConceptualReviewFocus = { label: string; relatedPrompts: string[] };
+
 export type EvaluationScores = {
   correctness: number;
   clarity: number;
@@ -81,7 +83,8 @@ export const buildInterviewerSystemPrompt = (session: InterviewPromptSession) =>
 export const buildNextQuestionMessages = (
   session: InterviewPromptSession,
   turns: ConversationTurn[],
-  latestAnswer: string
+  latestAnswer: string,
+  reviewFocus?: ConceptualReviewFocus | null
 ): LLMMessage[] => {
   const messages: LLMMessage[] = [
     {
@@ -100,6 +103,16 @@ export const buildNextQuestionMessages = (
   }
 
   messages.push({ role: "user", content: latestAnswer });
+  if (reviewFocus) {
+    messages.push({
+      role: "system",
+      content: [
+        `Spaced-repetition focus: probe the related concept “${reviewFocus.label}”.`,
+        "Ask a fresh question that tests the same concept from a different angle; do not repeat these prior prompts verbatim:",
+        ...reviewFocus.relatedPrompts.map((prompt) => `- ${prompt}`)
+      ].join("\n")
+    });
+  }
   return messages;
 };
 
