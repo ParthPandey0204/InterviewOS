@@ -62,9 +62,11 @@ GROQ_API_KEY="your Groq key"
 
 Render will generate `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` from the blueprint.
 
-After the first deploy, run migrations from your machine or Render shell:
+Migrations run automatically on service start. If a deploy fails with Prisma error `P3009` (failed migration), clear the failed record once, then redeploy:
 
 ```bash
+# Use your production DATABASE_URL / DIRECT_URL in .env or the shell
+npm.cmd exec --workspace server -- prisma migrate resolve --rolled-back 20260819000000_add_cluster_review_schedule
 npm.cmd exec --workspace server -- prisma migrate deploy
 ```
 
