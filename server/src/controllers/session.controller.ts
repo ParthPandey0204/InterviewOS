@@ -47,6 +47,11 @@ export const listUserSessions = asyncHandler(async (request: Request, response: 
   response.json({ sessions });
 });
 
+export const deleteUserSessions = asyncHandler(async (request: Request, response: Response) => {
+  const deletedCount = await sessionService.deleteUserSessions(requireUserId(request));
+  response.json({ deletedCount });
+});
+
 export const getAnalytics = asyncHandler(async (request: Request, response: Response) => {
   const userId = requireUserId(request);
   const analytics = await sessionService.getAnalytics(userId);

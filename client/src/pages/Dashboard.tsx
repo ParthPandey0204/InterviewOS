@@ -20,6 +20,7 @@ const HomeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 2
 const BarChartIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg>;
 const ChevronDownIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>;
 const LogOutIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>;
+const TrashIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
 const PlusIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>;
 const CodeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>;
 const UsersIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
@@ -143,7 +144,10 @@ export const Dashboard: React.FC = () => {
   const [difficulty, setDifficulty] = useState("MEDIUM");
   const [company, setCompany] = useState(companies[0]);
   const [isStarting, setIsStarting] = useState(false);
+  const [isDeletingHistory, setIsDeletingHistory] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
+  const displayName = user?.name?.trim() || user?.email?.split("@")[0] || "Your account";
+  const avatarInitial = displayName.charAt(0).toUpperCase();
 
   useEffect(() => {
     async function loadSessions() {
@@ -193,6 +197,21 @@ export const Dashboard: React.FC = () => {
     return `Scored ${Math.round((scores.reduce((total, score) => total + score, 0) / scores.length) * 20)}%`;
   };
 
+  const clearHistory = async () => {
+    if (!sessions.length || isDeletingHistory || !window.confirm("Delete all of your interview history? This cannot be undone.")) return;
+
+    setIsDeletingHistory(true);
+    setSessionsError(null);
+    try {
+      await apiRequest("/api/sessions", { method: "DELETE" });
+      setSessions([]);
+    } catch (error) {
+      setSessionsError(error instanceof Error ? error.message : "Unable to delete your interview history.");
+    } finally {
+      setIsDeletingHistory(false);
+    }
+  };
+
   return (
     <div className="dashboard-page">
       <header className="dashboard-header">
@@ -208,10 +227,10 @@ export const Dashboard: React.FC = () => {
         </div>
         <div className="header-right">
           <div className="user-badge">
-            <div className="avatar">L</div>
+            <div className="avatar" aria-hidden="true">{avatarInitial}</div>
             <div className="user-info">
-              <h3>Lavanya</h3>
-              <p>parthwedslavanya1203@gmail.com</p>
+              <h3>{displayName}</h3>
+              <p>{user?.email || ""}</p>
             </div>
             <ChevronDownIcon />
           </div>
@@ -273,12 +292,16 @@ export const Dashboard: React.FC = () => {
               <p className="section-kicker">Practice history</p>
               <h2>Past sessions</h2>
             </div>
-            <span className="session-count">{sessions.length || 3} total</span>
+            <div className="history-actions">
+              <span className="session-count">{sessions.length} total</span>
+              <button className="clear-history-button" onClick={clearHistory} disabled={!sessions.length || isDeletingHistory}>
+                <TrashIcon /> {isDeletingHistory ? "Deleting…" : "Clear history"}
+              </button>
+            </div>
           </div>
           
           {sessionsError && <div className="setup-error"><span>{sessionsError}</span><button className="action-link" onClick={() => window.location.reload()}>Try again</button></div>}
           
-          {/* We'll show the mock data if sessions array is empty to match the user's requirement of the screenshot precisely during development, but mapping the real state is critical. */}
           <div className="sessions-list">
             {sessions.length > 0 ? sessions.map((s) => {
               const score = formatScore(s);
@@ -308,47 +331,7 @@ export const Dashboard: React.FC = () => {
                   </div>
                 </article>
               );
-            }) : (
-              /* Fallback exact match mock data if no DB sessions are present */
-              <>
-                <article className="session-row">
-                  <div className="session-info">
-                    <div className="session-icon"><CodeIcon /></div>
-                    <div className="session-details">
-                      <span className="session-title">Behavioural Interview</span>
-                      <div className="session-meta">
-                        <span className="session-meta-item"><BarChartIcon /> Medium difficulty</span>
-                        <span>·</span>
-                        <span className="session-meta-item"><CalendarIcon /> 25 mins</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="session-metrics">
-                    <span className="score-pill not-scored">Not scored</span>
-                    <div className="session-date"><CalendarIcon /> 8/14/2026</div>
-                    <button className="action-link">Open <ArrowRightIcon /></button>
-                  </div>
-                </article>
-                <article className="session-row">
-                  <div className="session-info">
-                    <div className="session-icon"><BriefcaseIcon /></div>
-                    <div className="session-details">
-                      <span className="session-title">Case Study – Market Entry</span>
-                      <div className="session-meta">
-                        <span className="session-meta-item"><BarChartIcon /> Medium difficulty</span>
-                        <span>·</span>
-                        <span className="session-meta-item"><CalendarIcon /> 32 mins</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="session-metrics">
-                    <span className="score-pill">Scored 78%</span>
-                    <div className="session-date"><CalendarIcon /> 8/12/2026</div>
-                    <button className="action-link">Review <ArrowRightIcon /></button>
-                  </div>
-                </article>
-              </>
-            )}
+            }) : <p className="empty-history">No interview sessions yet. Start one when you’re ready.</p>}
           </div>
         </section>
       </div>

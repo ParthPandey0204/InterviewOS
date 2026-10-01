@@ -7,6 +7,7 @@ export const sessionRouter = Router();
 sessionRouter.use(requireAuth);
 sessionRouter.post("/", sessionController.createSession);
 sessionRouter.get("/", sessionController.listUserSessions);
+sessionRouter.delete("/", sessionController.deleteUserSessions);
 sessionRouter.get("/analytics", sessionController.getAnalytics);
 sessionRouter.post("/:id/turns", sessionController.createTurn);
 sessionRouter.post("/:id/start/stream", sessionController.startSessionStream);

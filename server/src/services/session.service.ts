@@ -256,6 +256,11 @@ export const listUserSessions = async (userId: string) => {
   });
 };
 
+export const deleteUserSessions = async (userId: string) => {
+  const result = await prisma.session.deleteMany({ where: { userId } });
+  return result.count;
+};
+
 export const getAnalytics = async (userId: string) => {
   const sessions = await prisma.session.findMany({
     where: { userId },
