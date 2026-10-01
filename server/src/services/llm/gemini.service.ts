@@ -11,8 +11,13 @@ import type {
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
-const isQuotaError = (error: unknown) =>
-  error instanceof Error && (error.message.includes("status 429") || error.message.includes("RESOURCE_EXHAUSTED"));
+const canFallBackToGroq = (error: unknown) =>
+  error instanceof Error && (
+    error.message.includes("status 429") ||
+    error.message.includes("RESOURCE_EXHAUSTED") ||
+    error.message.includes("status 503") ||
+    error.message.includes("UNAVAILABLE")
+  );
 
 type GeminiServiceOptions = {
   apiKey?: string;
@@ -201,7 +206,7 @@ export class GeminiService implements LLMService {
     try {
       await ensureOk(response, "Gemini");
     } catch (error) {
-      if (isQuotaError(error) && config.llm.groq.apiKey) {
+      if (canFallBackToGroq(error) && config.llm.groq.apiKey) {
         return new GroqService().generate(request);
       }
       throw error;
@@ -233,7 +238,7 @@ export class GeminiService implements LLMService {
     try {
       await ensureOk(response, "Gemini");
     } catch (error) {
-      if (isQuotaError(error) && config.llm.groq.apiKey) {
+      if (canFallBackToGroq(error) && config.llm.groq.apiKey) {
         yield* new GroqService().generateStream(request);
         return;
       }
