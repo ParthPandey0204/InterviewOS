@@ -69,8 +69,7 @@ export const evaluateAnswer = async (input: EvaluateAnswerInput) => {
         answer: input.answer
       }),
       options: {
-        // Gemini 3.5 uses part of the budget for internal reasoning even at
-        // low thinking level; leave enough room for the final JSON payload.
+        // Leave enough room for the final JSON payload.
         maxTokens: 600
       }
     });

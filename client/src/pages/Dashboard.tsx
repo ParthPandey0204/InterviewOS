@@ -4,7 +4,6 @@ import { useAuth } from "../context/AuthContext";
 import { apiRequest } from "../api/client";
 
 const modes = ["Technical", "Behavioural", "Case Study"];
-const companies = ["No preference", "Google", "Microsoft", "Amazon", "Meta", "Apple"];
 
 type Session = {
   id: string;
@@ -142,7 +141,7 @@ export const Dashboard: React.FC = () => {
   const [isSetupOpen, setIsSetupOpen] = useState(false);
   const [mode, setMode] = useState(modes[0]);
   const [difficulty, setDifficulty] = useState("MEDIUM");
-  const [company, setCompany] = useState(companies[0]);
+  const [company, setCompany] = useState("");
   const [isStarting, setIsStarting] = useState(false);
   const [isDeletingHistory, setIsDeletingHistory] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
@@ -177,7 +176,7 @@ export const Dashboard: React.FC = () => {
     try {
       const result = await apiRequest<{ session: Session }>("/api/sessions", {
         method: "POST",
-        body: JSON.stringify({ mode, difficulty, company: company === "No preference" ? undefined : company })
+        body: JSON.stringify({ mode, difficulty, company: company || undefined })
       });
       setSessions((current) => [result.session, ...current]);
       setIsSetupOpen(false);
@@ -358,9 +357,7 @@ export const Dashboard: React.FC = () => {
                 </div>
               </label>
               <label>Target company
-                <select value={company} onChange={(event) => setCompany(event.target.value)}>
-                  {companies.map((item) => <option key={item}>{item}</option>)}
-                </select>
+                <input type="text" value={company} onChange={(event) => setCompany(event.target.value)} placeholder="Optional — e.g. a company you are applying to" maxLength={120} />
               </label>
               <button className="primary-action modal-submit" disabled={isStarting}>{isStarting ? "Starting…" : "Start session"}</button>
             </form>

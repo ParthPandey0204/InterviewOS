@@ -19,6 +19,22 @@ const parseEvents = (buffer: string) => {
   return { complete: events.slice(0, -1), remainder: events.at(-1) ?? "" };
 };
 
+const streamRequest = async (endpoint: string, options: RequestInit) => {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 70_000);
+
+  try {
+    return await fetch(`${API_BASE}${endpoint}`, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("The AI service took too long to respond. Please try again.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+};
+
 export const InterviewRoom: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -53,7 +69,7 @@ export const InterviewRoom: React.FC = () => {
     const startInterview = async () => {
       setStartingQuestion(true); setStreamingQuestion(""); setError(null);
       try {
-        const response = await fetch(`${API_BASE}/api/sessions/${id}/start/stream`, { method: "POST", headers: { Authorization: `Bearer ${getAccessToken()}` }, credentials: "include" });
+        const response = await streamRequest(`/api/sessions/${id}/start/stream`, { method: "POST", headers: { Authorization: `Bearer ${getAccessToken()}` }, credentials: "include" });
         if (!response.ok || !response.body) throw new Error("Unable to start the interview.");
         const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = "";
         const consume = (message: string) => { const name = message.split(/\r?\n/).find((line) => line.startsWith("event:"))?.slice(6).trim(); const line = message.split(/\r?\n/).find((item) => item.startsWith("data:")); if (!line) return; const payload = JSON.parse(line.slice(5).trim()); if (name === "delta") setStreamingQuestion((current) => current + payload.content); if (name === "done") setSession((current) => current ? { ...current, turns: [payload.turn] } : current); if (name === "error") throw new Error(payload.message || "Unable to start the interview."); };
@@ -91,7 +107,7 @@ export const InterviewRoom: React.FC = () => {
     const answerToSubmit = answer.trim();
     setError(null); setScores(null); setScoredTurnId(null); setStreamingQuestion(""); setAnswer(""); setIsStreaming(true);
     try {
-      const response = await fetch(`${API_BASE}/api/sessions/${id}/turns/stream`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${getAccessToken()}` }, credentials: "include", body: JSON.stringify({ answer: answerToSubmit }) });
+      const response = await streamRequest(`/api/sessions/${id}/turns/stream`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${getAccessToken()}` }, credentials: "include", body: JSON.stringify({ answer: answerToSubmit }) });
       if (!response.ok || !response.body) { const data = await response.json().catch(() => ({})); throw new Error(data.error?.message || "Unable to submit answer"); }
       const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ""; let completed = false;
       const handleEvent = (message: string) => {

@@ -19,3 +19,15 @@ export const ensureOk = async (response: Response, provider: string) => {
     `${provider} request failed with status ${response.status}${details}`
   );
 };
+
+export const fetchWithTimeout = async (url: string, options: RequestInit, provider: string) => {
+  try {
+    return await fetch(url, { ...options, signal: AbortSignal.timeout(60_000) });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new HttpError(504, `${provider} request timed out. Please try again.`);
+    }
+
+    throw error;
+  }
+};

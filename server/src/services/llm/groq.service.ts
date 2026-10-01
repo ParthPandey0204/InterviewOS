@@ -1,5 +1,5 @@
 import { config } from "../../config.js";
-import { ensureOk, requireApiKey } from "./http.js";
+import { ensureOk, fetchWithTimeout, requireApiKey } from "./http.js";
 import type {
   LLMGenerateRequest,
   LLMGenerateResult,
@@ -117,14 +117,14 @@ export class GroqService implements LLMService {
     requireApiKey("Groq", this.apiKey);
 
     const model = request.options?.model ?? this.defaultModel;
-    const response = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
+    const response = await fetchWithTimeout(GROQ_CHAT_COMPLETIONS_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(toGroqBody(request, model, false))
-    });
+    }, "Groq");
 
     await ensureOk(response, "Groq");
     const payload = (await response.json()) as unknown;
@@ -143,14 +143,14 @@ export class GroqService implements LLMService {
     requireApiKey("Groq", this.apiKey);
 
     const model = request.options?.model ?? this.defaultModel;
-    const response = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
+    const response = await fetchWithTimeout(GROQ_CHAT_COMPLETIONS_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(toGroqBody(request, model, true))
-    });
+    }, "Groq");
 
     await ensureOk(response, "Groq");
 

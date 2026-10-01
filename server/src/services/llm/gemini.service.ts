@@ -1,5 +1,5 @@
 import { config } from "../../config.js";
-import { ensureOk, requireApiKey } from "./http.js";
+import { ensureOk, fetchWithTimeout, requireApiKey } from "./http.js";
 import { GroqService } from "./groq.service.js";
 import type {
   LLMGenerateRequest,
@@ -188,13 +188,14 @@ export class GeminiService implements LLMService {
     requireApiKey("Gemini", this.apiKey);
 
     const model = request.options?.model ?? this.defaultModel;
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `${GEMINI_API_BASE}/models/${model}:generateContent?key=${this.apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(toGeminiBody(request, model))
-      }
+      },
+      "Gemini"
     );
 
     try {
@@ -219,13 +220,14 @@ export class GeminiService implements LLMService {
     requireApiKey("Gemini", this.apiKey);
 
     const model = request.options?.model ?? this.defaultModel;
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `${GEMINI_API_BASE}/models/${model}:streamGenerateContent?alt=sse&key=${this.apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(toGeminiBody(request, model))
-      }
+      },
+      "Gemini"
     );
 
     try {
