@@ -8,12 +8,6 @@ type Turn = { id: string; role: "USER" | "ASSISTANT"; content: string; metadata?
 type Session = { id: string; mode: string; difficulty: string; targetCompany: string | null; turns: Turn[] };
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
-const starterQuestion = (mode: string) => {
-  if (mode === "Behavioural") return "Tell me about a time you handled a difficult challenge with your team. What did you do, and what was the result?";
-  if (mode === "Case Study") return "How would you approach improving the activation rate for a new product?";
-  return "Walk me through how you would design a scalable URL-shortening service.";
-};
-
 const parseEvents = (buffer: string) => {
   const events = buffer.split(/\r?\n\r?\n/);
   return { complete: events.slice(0, -1), remainder: events.at(-1) ?? "" };
@@ -46,6 +40,7 @@ export const InterviewRoom: React.FC = () => {
   const [scores, setScores] = useState<EvaluationScores | null>(null);
   const [scoredTurnId, setScoredTurnId] = useState<string | null>(null);
   const [startingQuestion, setStartingQuestion] = useState(false);
+  const [openingAttempt, setOpeningAttempt] = useState(0);
   const [endingSession, setEndingSession] = useState(false);
 
   useEffect(() => {
@@ -79,7 +74,7 @@ export const InterviewRoom: React.FC = () => {
       finally { setStartingQuestion(false); }
     };
     void startInterview();
-  }, [id, session, startingQuestion, error]);
+  }, [id, session, startingQuestion, error, openingAttempt]);
 
   const latestQuestion = useMemo(() => {
     const turns = session?.turns || [];
@@ -90,9 +85,13 @@ export const InterviewRoom: React.FC = () => {
   }, [session]);
 
   const isGeneratingQuestion = startingQuestion || isStreaming;
-  const questionPrompt = isGeneratingQuestion
-    ? streamingQuestion || latestQuestion || (session ? starterQuestion(session.mode) : "")
-    : latestQuestion || (session ? starterQuestion(session.mode) : "");
+  const questionPrompt = streamingQuestion || latestQuestion;
+
+  const retryOpeningQuestion = () => {
+    if (startingQuestion || latestQuestion) return;
+    setError(null);
+    setOpeningAttempt((attempt) => attempt + 1);
+  };
 
   const endSession = async () => {
     if (!id || endingSession) return;
@@ -131,7 +130,7 @@ export const InterviewRoom: React.FC = () => {
   return (
     <div className="room-page">
       <header className="room-header"><Link to="/" className="back-link">← Dashboard</Link><div><strong>{session.mode} interview</strong><span>{session.difficulty.toLowerCase()} difficulty{session.targetCompany && ` · ${session.targetCompany}`}</span></div><button className="btn-secondary end-session" onClick={() => void endSession()} disabled={endingSession}>{endingSession ? "Ending…" : "End session"}</button></header>
-      <main className="room-layout"><section className="interview-panel"><div className="question-box"><p className="section-kicker">Interviewer question</p><h1>{questionPrompt}</h1>{isGeneratingQuestion && <span className="streaming-indicator">{startingQuestion ? "Your interviewer is preparing a question…" : "Preparing the next question…"}</span>}</div><form className="answer-composer" onSubmit={submitAnswer}><label htmlFor="answer">Your next answer</label><textarea id="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Think aloud, explain your reasoning, and mention any trade-offs…" disabled={isStreaming || startingQuestion} required /><div className="answer-actions"><span>{answer.trim().split(/\s+/).filter(Boolean).length} words</span><button className="primary-action" disabled={isStreaming || startingQuestion || !answer.trim()}>{isStreaming ? "Interviewing…" : "Submit answer"}</button></div></form>{error && <p className="room-error">{error}</p>}</section>{scores ? <ScoreCard key={scoredTurnId ?? "scores"} scores={scores} /> : <aside className="room-tip"><p className="section-kicker">Interview tip</p><h3>Make your thinking visible</h3><p>Lead with your approach, then explain trade-offs and edge cases. This gives the interviewer a clearer signal.</p></aside>}</main>
+      <main className="room-layout"><section className="interview-panel"><div className="question-box"><p className="section-kicker">Interviewer question</p>{questionPrompt ? <h1>{questionPrompt}</h1> : <h1 className="question-placeholder">{startingQuestion ? "Connecting to your interviewer…" : "Your interviewer has not generated a question yet."}</h1>}{isGeneratingQuestion && <span className="streaming-indicator">{startingQuestion ? "Generating your opening question…" : "Preparing the next question…"}</span>}{error && !latestQuestion && <button className="retry-question-button" type="button" onClick={retryOpeningQuestion}>Try again</button>}</div><form className="answer-composer" onSubmit={submitAnswer}><label htmlFor="answer">Your next answer</label><textarea id="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Wait for the interviewer’s question before answering." disabled={isStreaming || startingQuestion || !latestQuestion} required /><div className="answer-actions"><span>{answer.trim().split(/\s+/).filter(Boolean).length} words</span><button className="primary-action" disabled={isStreaming || startingQuestion || !latestQuestion || !answer.trim()}>{isStreaming ? "Interviewing…" : "Submit answer"}</button></div></form>{error && <p className="room-error">{error}</p>}</section>{scores ? <ScoreCard key={scoredTurnId ?? "scores"} scores={scores} /> : <aside className="room-tip"><p className="section-kicker">Interview tip</p><h3>Make your thinking visible</h3><p>Lead with your approach, then explain trade-offs and edge cases. This gives the interviewer a clearer signal.</p></aside>}</main>
     </div>
   );
   /*

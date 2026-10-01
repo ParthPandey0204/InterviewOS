@@ -430,7 +430,10 @@ body {
 .question-box { background: linear-gradient(125deg, #eff7f0, #dbeedd); border-bottom: 1px solid var(--color-border); padding: 36px 40px; }
 .question-box .section-kicker, .room-tip .section-kicker, .score-card .section-kicker { margin: 0 0 10px; }
 .question-box h1 { color: var(--color-text-main); font-family: 'Playfair Display', Georgia, serif; font-size: clamp(1.55rem, 3vw, 2.35rem); font-weight: 700; line-height: 1.25; margin: 0; max-width: 760px; }
+.question-box h1.question-placeholder { color: var(--color-text-muted); font-family: 'Inter', system-ui, sans-serif; font-size: 1.15rem; line-height: 1.45; }
 .streaming-indicator { color: var(--color-accent-dark); display: inline-block; font-size: .9rem; font-weight: 600; margin-top: 18px; }
+.retry-question-button { background: var(--color-primary); border: 0; border-radius: 8px; color: #fff; cursor: pointer; display: block; font: inherit; font-weight: 700; margin-top: 18px; padding: 9px 14px; }
+.retry-question-button:hover { background: #062410; }
 .answer-composer { display: grid; gap: 12px; padding: 30px 40px; }
 .answer-composer label { color: var(--color-text-main); font-size: .95rem; font-weight: 700; }
 .answer-composer textarea { box-sizing: border-box; border: 1px solid #c9d8cc; border-radius: 12px; color: var(--color-text-main); font: inherit; line-height: 1.55; min-height: 170px; outline: none; padding: 14px 16px; resize: vertical; width: 100%; }
