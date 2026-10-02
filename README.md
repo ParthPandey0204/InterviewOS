@@ -1,5 +1,48 @@
 # InterviewOS
 
+InterviewOS is a practice interview platform that gives structured AI feedback, shows an improved answer before advancing, and identifies weak concepts across sessions.
+
+## Problem statement
+
+Interview practice is usually unstructured: candidates get a question, move on too quickly, and never see where their reasoning was weak. InterviewOS provides a deliberate feedback loop: answer, review the score and stronger answer, then explicitly continue. It also surfaces recurring weak-topic clusters over time.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  UI[React / Vite client] --> API[Express API]
+  API --> DB[(Supabase Postgres / Prisma)]
+  API --> LLM[Gemini with Groq fallback]
+  LLM --> API
+  API --> Usage[UsageLog: tokens, cost, latency]
+  Usage --> Analytics[Progress and operations dashboard]
+```
+
+## Reliability story
+
+The evaluator uses a versioned, calibrated rubric and few-shot examples. The measured harness results show a 96.7–97.6% reduction in score variance versus the baseline prompt. See [the methodology and reliability-variance chart](docs/SCORING_PROMPT_VERSIONING.md).
+
+## Features
+
+- In-room answer review, radar chart, targeted feedback, and improved-answer guidance.
+- Weak-topic clustering and spaced-repetition question focus.
+- Razorpay, Zepto, Meesho, and Flipkart-style interview question filters when a target company is selected.
+- Web Speech API voice dictation (Chrome/Edge).
+- Internal UsageLog dashboard for token volume, estimated cost, and provider p50/p95 latency.
+- Server-side daily session cap (`DAILY_SESSION_CAP`, default: 8) to protect free-tier capacity.
+- Gemini request timeout configuration (`LLM_REQUEST_TIMEOUT_MS`, default: 120000) with optional Groq fallback.
+- GitHub Actions validation on every push and pull request.
+
+## Screenshots and demo
+
+Add exported screenshots to `docs/screenshots/` and link them here before publishing. Record the planned 3-minute walkthrough after deployment: create a company-targeted session, submit a weak response, show the review chart and improved answer, then open Analytics to show weak-topic clustering and UsageLog metrics.
+
+**Live link:** add the deployed Vercel URL here after deployment.
+
+## Real-user study
+
+Invite 15–20 consenting classmates only after deployment. Record aggregate participation, completed-session count, and average score without publishing personal data. These metrics must be collected from real usage rather than fabricated for a resume.
+
 Monorepo for InterviewOS:
 
 - `client`: Vite + React

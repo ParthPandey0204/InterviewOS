@@ -30,6 +30,18 @@ const difficultyCalibration: Record<QuestionDifficulty, string> = {
     "Ask senior-level questions that require precise reasoning, edge-case analysis, scalability awareness, and clear justification of tradeoffs. Keep the question answerable in conversation."
 };
 
+const companyQuestionStyles: Record<string, string> = {
+  razorpay: "payments, idempotency, webhooks, reconciliation, ledger correctness, and API reliability",
+  zepto: "quick-commerce fulfilment, live inventory, dispatch, ETA estimation, and last-mile operational trade-offs",
+  meesho: "marketplace sellers, catalog quality, social commerce, order lifecycle, returns, and cost-sensitive scale",
+  flipkart: "large-scale e-commerce search, checkout, inventory, recommendations, order consistency, and sale-event traffic"
+};
+
+const companyQuestionBankInstruction = (company: string | null) => {
+  const style = company ? companyQuestionStyles[company.trim().toLowerCase()] : undefined;
+  return style ? `Company question bank filter: ask a realistic ${company} style question grounded in ${style}. Do not claim the question is sourced from the company.` : undefined;
+};
+
 const rubricDefinition = [
   "Scoring Rubric (Strict 0 to 5 Integer Scale for each axis):",
   "- Correctness (0-5): 5 = Fully accurate, sound reasoning, completely solves problem. 3 = Partially correct with minor flaws/omissions. 1 = Flawed reasoning or incorrect algorithm. 0 = Completely incorrect or non-answer.",
@@ -61,6 +73,7 @@ const formatSessionContext = (session: InterviewPromptSession) => {
     `Difficulty: ${session.difficulty}`,
     session.targetCompany ? `Target company: ${session.targetCompany}` : undefined,
     session.targetRole ? `Target role: ${session.targetRole}` : undefined
+    ,companyQuestionBankInstruction(session.targetCompany)
   ]
     .filter(Boolean)
     .join("\n");

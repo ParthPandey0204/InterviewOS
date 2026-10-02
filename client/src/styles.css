@@ -456,6 +456,9 @@ body {
 .answer-composer textarea:disabled { background: #f4f7f4; cursor: not-allowed; }
 .answer-actions { align-items: center; color: var(--color-text-muted); display: flex; font-size: .85rem; justify-content: space-between; }
 .answer-actions .primary-action { justify-content: center; min-width: 142px; }
+.answer-buttons { display: flex; gap: 10px; }
+.voice-action { background: #fff; border: 1px solid #a7c4aa; border-radius: 8px; color: var(--color-primary); cursor: pointer; font: inherit; font-weight: 700; padding: 10px 13px; }
+.voice-action:disabled { cursor: not-allowed; opacity: .55; }
 .room-error { background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; color: #b91c1c; margin: 0 40px 30px; padding: 10px 12px; }
 .room-tip, .score-card { box-sizing: border-box; padding: 26px; }
 .room-tip h3, .score-card h3 { color: var(--color-text-main); font-family: 'Playfair Display', Georgia, serif; font-size: 1.35rem; margin: 0 0 10px; }
@@ -466,6 +469,12 @@ body {
 .score-card dl > div { align-items: center; border-top: 1px solid #eef3ef; display: flex; justify-content: space-between; padding-top: 10px; }
 .score-card dt { color: var(--color-text-muted); }
 .score-card dd { color: var(--color-primary); font-weight: 700; margin: 0; }
+.usage-dashboard { grid-column: 1 / -1; }
+.usage-note { color: var(--color-text-muted); margin: 8px 0 18px; }
+.usage-table { border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden; }
+.usage-row { align-items: center; display: grid; gap: 16px; grid-template-columns: 1.1fr 1fr 1fr 1fr; padding: 13px 16px; }
+.usage-row + .usage-row { border-top: 1px solid #eef3ef; }
+.usage-labels { background: #f4f8f4; color: var(--color-text-muted); font-size: .78rem; font-weight: 700; text-transform: uppercase; }
 .score-chart-key { color: var(--color-text-muted); font-size: .75rem; line-height: 1.4; margin: -5px 0 14px; }
 .review-layout { align-items: start; display: grid; gap: 28px; grid-template-columns: minmax(0, 1fr) 320px; }
 .answer-review { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 20px; box-shadow: 0 10px 40px rgba(0, 0, 0, .025); padding: 36px 40px; }
@@ -636,6 +645,8 @@ body {
   .room-header > div { grid-column: 1 / -1; grid-row: 2; justify-items: start; text-align: left; }
   .room-layout { grid-template-columns: 1fr; }
   .review-layout { grid-template-columns: 1fr; }
+  .usage-row { grid-template-columns: 1fr 1fr; }
+  .usage-labels span:nth-child(n+3), .usage-row span:nth-child(n+3) { text-align: right; }
   .room-tip, .score-card { grid-row: 1; }
   .question-box, .answer-composer { padding: 26px 22px; }
   .answer-review { padding: 26px 22px; }
@@ -648,4 +659,5 @@ body {
   .session-metrics { align-items: flex-start; flex-direction: column; gap: 10px; }
   .answer-actions { align-items: stretch; flex-direction: column; gap: 12px; }
   .answer-actions .primary-action { width: 100%; }
+  .answer-buttons { flex-direction: column; }
 }

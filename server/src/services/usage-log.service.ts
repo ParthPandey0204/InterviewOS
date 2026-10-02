@@ -27,6 +27,12 @@ const toUsageProvider = (provider: LLMProvider) => {
   }
 };
 
+const estimatedCostUsd = (provider: LLMProvider, promptTokens: number, completionTokens: number) => {
+  // Conservative public-list-price estimates; keep these visible as estimates in analytics.
+  const rates = provider === "gemini" ? { input: 0.30, output: 2.50 } : { input: 0.05, output: 0.08 };
+  return (promptTokens / 1_000_000) * rates.input + (completionTokens / 1_000_000) * rates.output;
+};
+
 export const defaultModelForProvider = (provider: LLMProvider) => {
   switch (provider) {
     case "gemini":
@@ -51,6 +57,7 @@ export const logUsage = async (input: UsageInput) => {
       promptTokens,
       completionTokens,
       totalTokens,
+      costUsd: estimatedCostUsd(input.provider, promptTokens, completionTokens),
       metadata: {
         latencyMs: input.latencyMs,
         ...input.metadata

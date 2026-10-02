@@ -197,6 +197,13 @@ export const createSession = async (userId: string, input: CreateSessionInput) =
   const difficulty = normalizeDifficulty(input.difficulty);
   const company = normalizeOptionalText(input.company);
 
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const sessionsToday = await prisma.session.count({ where: { userId, createdAt: { gte: today } } });
+  if (sessionsToday >= config.dailySessionCap) {
+    throw new HttpError(429, `Daily session limit reached (${config.dailySessionCap}). Please come back tomorrow.`);
+  }
+
   return prisma.session.create({
     data: {
       userId,
@@ -312,10 +319,39 @@ export const getAnalytics = async (userId: string) => {
     select: { clusterLabel: true, averageScore: true, questionCount: true, sessionCount: true }
   }) || [];
 
+  const usageLogs = await prisma.usageLog.findMany({
+    where: { userId },
+    select: { sessionId: true, provider: true, promptTokens: true, completionTokens: true, totalTokens: true, costUsd: true, metadata: true }
+  });
+  const percentile = (values: number[], fraction: number) => {
+    if (!values.length) return 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)];
+  };
+  const usageByProvider = new Map<string, { promptTokens: number; completionTokens: number; totalTokens: number; costUsd: number; latencies: number[] }>();
+  const usageBySession = new Map<string, { totalTokens: number; estimatedCostUsd: number }>();
+  for (const log of usageLogs) {
+    const provider = log.provider.toLowerCase();
+    const providerUsage = usageByProvider.get(provider) ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0, latencies: [] };
+    providerUsage.promptTokens += log.promptTokens;
+    providerUsage.completionTokens += log.completionTokens;
+    providerUsage.totalTokens += log.totalTokens;
+    providerUsage.costUsd += Number(log.costUsd ?? 0);
+    const latency = typeof log.metadata === "object" && log.metadata && "latencyMs" in log.metadata ? (log.metadata as { latencyMs?: unknown }).latencyMs : undefined;
+    if (typeof latency === "number") providerUsage.latencies.push(latency);
+    usageByProvider.set(provider, providerUsage);
+    if (log.sessionId) { const current = usageBySession.get(log.sessionId) ?? { totalTokens: 0, estimatedCostUsd: 0 }; current.totalTokens += log.totalTokens; current.estimatedCostUsd += Number(log.costUsd ?? 0); usageBySession.set(log.sessionId, current); }
+  }
+  const usage = {
+    providers: [...usageByProvider.entries()].map(([provider, value]) => ({ provider, promptTokens: value.promptTokens, completionTokens: value.completionTokens, totalTokens: value.totalTokens, estimatedCostUsd: Number(value.costUsd.toFixed(6)), p50LatencyMs: percentile(value.latencies, .5), p95LatencyMs: percentile(value.latencies, .95) })),
+    sessions: [...usageBySession.entries()].map(([sessionId, value]) => ({ sessionId, totalTokens: value.totalTokens, estimatedCostUsd: Number(value.estimatedCostUsd.toFixed(6)) }))
+  };
+
   return {
     topicAverages,
     sessionsOverTime,
-    clusterInsights
+    clusterInsights,
+    usage
   };
 };
 

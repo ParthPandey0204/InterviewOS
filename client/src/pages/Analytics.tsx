@@ -11,6 +11,7 @@ type AnalyticsData = {
   topicAverages: Array<{ topic: string; averageScore: number }>;
   sessionsOverTime: Array<{ date: string; score: number; mode: string }>;
   clusterInsights?: Array<{ clusterLabel: string; averageScore: number; questionCount: number; sessionCount: number }>;
+  usage: { providers: Array<{ provider: string; totalTokens: number; estimatedCostUsd: number; p50LatencyMs: number; p95LatencyMs: number }> };
 };
 
 export const Analytics: React.FC = () => {
@@ -81,7 +82,7 @@ export const Analytics: React.FC = () => {
           ) : !data || (data.topicAverages.length === 0 && data.sessionsOverTime.length === 0) ? (
             <p className="session-state">Not enough data to display analytics. Complete a few interview sessions first!</p>
           ) : (
-            <div className="analytics-grid">
+            <><div className="analytics-grid">
               <section className="analytics-card">
                 <div>
                   <p className="section-kicker">Weak Areas</p>
@@ -119,7 +120,7 @@ export const Analytics: React.FC = () => {
                   </ResponsiveContainer>
                 </div>
               </section>
-            </div>
+            </div><section className="analytics-card usage-dashboard"><p className="section-kicker">Internal operations</p><h2>AI cost & latency</h2><p className="usage-note">Estimated list-price cost from UsageLog. Latencies are measured server-side.</p>{data.usage.providers.length ? <div className="usage-table"><div className="usage-row usage-labels"><span>Provider</span><span>Tokens</span><span>Est. cost</span><span>P50 / P95</span></div>{data.usage.providers.map((provider) => <div className="usage-row" key={provider.provider}><strong>{provider.provider}</strong><span>{provider.totalTokens.toLocaleString()}</span><span>${provider.estimatedCostUsd.toFixed(4)}</span><span>{Math.round(provider.p50LatencyMs)} / {Math.round(provider.p95LatencyMs)} ms</span></div>)}</div> : <p className="session-state">No model usage has been recorded yet.</p>}</section></>
           )}
         </main>
       </div>

@@ -33,6 +33,7 @@ export const config = {
   ),
   requestLogFormat: process.env.REQUEST_LOG_FORMAT ?? "dev",
   llmRequestTimeoutMs: positiveInteger(process.env.LLM_REQUEST_TIMEOUT_MS, 120_000),
+  dailySessionCap: positiveInteger(process.env.DAILY_SESSION_CAP, 8),
   jwt: {
     accessSecret: requiredSecret(
       "JWT_ACCESS_SECRET",
