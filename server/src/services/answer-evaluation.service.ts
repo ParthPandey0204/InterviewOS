@@ -24,8 +24,8 @@ export const evaluationScoresSchema = z
 export type EvaluationScores = z.infer<typeof evaluationScoresSchema>;
 
 const answerEvaluationSchema = evaluationScoresSchema.extend({
-  feedback: z.string().min(1),
-  betterAnswer: z.string().min(1)
+  feedback: z.string().trim().optional(),
+  betterAnswer: z.string().trim().optional()
 });
 
 export type AnswerEvaluation = z.infer<typeof answerEvaluationSchema>;
@@ -51,7 +51,11 @@ export const validateEvaluationScores = (payload: unknown): AnswerEvaluation => 
     throw new HttpError(502, "Evaluation response failed schema validation", result.error.flatten());
   }
 
-  return result.data;
+  return {
+    ...result.data,
+    feedback: result.data.feedback || "Use the score breakdown to identify the part of your explanation that needs the most work.",
+    betterAnswer: result.data.betterAnswer || ""
+  };
 };
 
 const defaultProvider = (): LLMProvider => {

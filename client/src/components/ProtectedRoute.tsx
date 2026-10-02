@@ -9,8 +9,14 @@ export const ProtectedRoute: React.FC = () => {
     return (
       <div className="loading-page">
         <div className="loading-card">
-          <div className="loading-mark">Interview<span>OS</span></div>
-          <p>Restoring your session...</p>
+          <div className="loading-brand" aria-label="InterviewOS">
+            <span className="loading-brand-icon" aria-hidden="true">✦</span>
+            <span>Interview<span>OS</span></span>
+          </div>
+          <div className="session-restore-spinner" aria-hidden="true"><i /><i /><i /></div>
+          <p className="section-kicker">Welcome back</p>
+          <h1>Restoring your session</h1>
+          <p className="loading-description">Getting your interview workspace ready for you.</p>
         </div>
       </div>
     );
