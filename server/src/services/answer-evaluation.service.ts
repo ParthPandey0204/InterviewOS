@@ -23,6 +23,13 @@ export const evaluationScoresSchema = z
 
 export type EvaluationScores = z.infer<typeof evaluationScoresSchema>;
 
+const answerEvaluationSchema = evaluationScoresSchema.extend({
+  feedback: z.string().min(1),
+  betterAnswer: z.string().min(1)
+});
+
+export type AnswerEvaluation = z.infer<typeof answerEvaluationSchema>;
+
 const parseJsonObject = (content: string) => {
   try {
     return JSON.parse(content) as unknown;
@@ -37,8 +44,8 @@ const parseJsonObject = (content: string) => {
   }
 };
 
-export const validateEvaluationScores = (payload: unknown): EvaluationScores => {
-  const result = evaluationScoresSchema.safeParse(payload);
+export const validateEvaluationScores = (payload: unknown): AnswerEvaluation => {
+  const result = answerEvaluationSchema.safeParse(payload);
 
   if (!result.success) {
     throw new HttpError(502, "Evaluation response failed schema validation", result.error.flatten());

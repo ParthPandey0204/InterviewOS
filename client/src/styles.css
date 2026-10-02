@@ -451,6 +451,18 @@ body {
 .score-card dl > div { align-items: center; border-top: 1px solid #eef3ef; display: flex; justify-content: space-between; padding-top: 10px; }
 .score-card dt { color: var(--color-text-muted); }
 .score-card dd { color: var(--color-primary); font-weight: 700; margin: 0; }
+.score-chart-key { color: var(--color-text-muted); font-size: .75rem; line-height: 1.4; margin: -5px 0 14px; }
+.review-layout { align-items: start; display: grid; gap: 28px; grid-template-columns: minmax(0, 1fr) 320px; }
+.answer-review { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 20px; box-shadow: 0 10px 40px rgba(0, 0, 0, .025); padding: 36px 40px; }
+.answer-review > .section-kicker { margin: 0 0 10px; }
+.answer-review h1 { color: var(--color-text-main); font-family: 'Playfair Display', Georgia, serif; font-size: clamp(1.55rem, 3vw, 2.2rem); line-height: 1.25; margin: 0 0 24px; }
+.review-question { background: #f4f8f4; border-left: 3px solid #7cad7e; border-radius: 8px; padding: 14px 16px; }
+.review-question span { color: var(--color-accent-dark); font-size: .78rem; font-weight: 700; text-transform: uppercase; }
+.review-question p, .review-feedback, .better-answer p:last-child { color: var(--color-text-main); line-height: 1.65; margin: 7px 0 0; }
+.review-feedback { color: var(--color-text-muted); margin: 22px 0; }
+.better-answer { background: #eef7ef; border: 1px solid #c9ddca; border-radius: 12px; padding: 20px; }
+.better-answer .section-kicker { margin: 0; }
+.next-question-button { margin-top: 26px; min-width: 164px; }
 
 .sessions-list {
   display: flex;
@@ -608,8 +620,10 @@ body {
   .room-header { grid-template-columns: 1fr auto; margin-bottom: 24px; }
   .room-header > div { grid-column: 1 / -1; grid-row: 2; justify-items: start; text-align: left; }
   .room-layout { grid-template-columns: 1fr; }
+  .review-layout { grid-template-columns: 1fr; }
   .room-tip, .score-card { grid-row: 1; }
   .question-box, .answer-composer { padding: 26px 22px; }
+  .answer-review { padding: 26px 22px; }
   .room-error { margin: 0 22px 22px; }
 }
 

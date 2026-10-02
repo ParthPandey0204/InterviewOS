@@ -129,8 +129,10 @@ export const buildEvaluationMessages = (input: {
       content: [
         "You are an interview answer evaluator. Score only the provided question and answer.",
         "Return strict JSON only, with no markdown, commentary, or extra keys.",
-        "Schema: {\"correctness\": number, \"clarity\": number, \"depth\": number}",
+        "Schema: {\"correctness\": number, \"clarity\": number, \"depth\": number, \"feedback\": string, \"betterAnswer\": string}",
         "Each score must be an integer from 0 to 5.",
+        "feedback must be a concise, constructive explanation of the most important improvement.",
+        "betterAnswer must be a concise, interview-ready answer that correctly addresses the question. Do not refer to the candidate's answer.",
         "Rubric definition:",
         rubricDefinition,
         fewShotExamples,
