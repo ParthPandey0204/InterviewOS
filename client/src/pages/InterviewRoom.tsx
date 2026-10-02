@@ -15,7 +15,7 @@ const parseEvents = (buffer: string) => {
 
 const streamRequest = async (endpoint: string, options: RequestInit) => {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 70_000);
+  const timeout = window.setTimeout(() => controller.abort(), 140_000);
   try { return await fetch(`${API_BASE}${endpoint}`, { ...options, signal: controller.signal }); }
   catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw new Error("The AI service took too long to respond. Please try again.");

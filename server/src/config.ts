@@ -1,5 +1,10 @@
 import "dotenv/config";
 
+const positiveInteger = (value: string | undefined, fallback: number) => {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
 const requiredSecret = (name: string, fallback: string) => {
   const value = process.env[name] ?? fallback;
 
@@ -27,6 +32,7 @@ export const config = {
       "http://localhost:5173"
   ),
   requestLogFormat: process.env.REQUEST_LOG_FORMAT ?? "dev",
+  llmRequestTimeoutMs: positiveInteger(process.env.LLM_REQUEST_TIMEOUT_MS, 120_000),
   jwt: {
     accessSecret: requiredSecret(
       "JWT_ACCESS_SECRET",

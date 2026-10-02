@@ -16,7 +16,8 @@ const canFallBackToGroq = (error: unknown) =>
     error.message.includes("status 429") ||
     error.message.includes("RESOURCE_EXHAUSTED") ||
     error.message.includes("status 503") ||
-    error.message.includes("UNAVAILABLE")
+    error.message.includes("UNAVAILABLE") ||
+    error.message.includes("request timed out")
   );
 
 type GeminiServiceOptions = {
@@ -193,17 +194,13 @@ export class GeminiService implements LLMService {
     requireApiKey("Gemini", this.apiKey);
 
     const model = request.options?.model ?? this.defaultModel;
-    const response = await fetchWithTimeout(
-      `${GEMINI_API_BASE}/models/${model}:generateContent?key=${this.apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(toGeminiBody(request, model))
-      },
-      "Gemini"
-    );
-
+    let response: Response;
     try {
+      response = await fetchWithTimeout(
+        `${GEMINI_API_BASE}/models/${model}:generateContent?key=${this.apiKey}`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(toGeminiBody(request, model)) },
+        "Gemini"
+      );
       await ensureOk(response, "Gemini");
     } catch (error) {
       if (canFallBackToGroq(error) && config.llm.groq.apiKey) {
@@ -225,17 +222,13 @@ export class GeminiService implements LLMService {
     requireApiKey("Gemini", this.apiKey);
 
     const model = request.options?.model ?? this.defaultModel;
-    const response = await fetchWithTimeout(
-      `${GEMINI_API_BASE}/models/${model}:streamGenerateContent?alt=sse&key=${this.apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(toGeminiBody(request, model))
-      },
-      "Gemini"
-    );
-
+    let response: Response;
     try {
+      response = await fetchWithTimeout(
+        `${GEMINI_API_BASE}/models/${model}:streamGenerateContent?alt=sse&key=${this.apiKey}`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(toGeminiBody(request, model)) },
+        "Gemini"
+      );
       await ensureOk(response, "Gemini");
     } catch (error) {
       if (canFallBackToGroq(error) && config.llm.groq.apiKey) {
