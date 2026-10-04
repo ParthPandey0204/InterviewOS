@@ -97,6 +97,22 @@ const turnSelect = {
   createdAt: true
 };
 
+const conceptKeywords: Array<[string, RegExp]> = [
+  ["Rate limiting & backpressure", /rate.?limit|token bucket|leaky bucket|backpressure|throttl/i],
+  ["Caching & Redis", /\bcache|redis|eviction|cache invalidation/i],
+  ["Databases & consistency", /database|sql|transaction|consisten|isolation|replica/i],
+  ["Scalability & system design", /scalab|load balanc|throughput|qps|distributed system/i],
+  ["Queues & asynchronous work", /queue|message broker|kafka|rabbitmq|asynchron/i],
+  ["API design & reliability", /\bapi\b|endpoint|idempot|retry|timeout|circuit breaker/i],
+  ["Algorithms & complexity", /algorithm|array|linked list|tree|graph|complexity|\bo\(n/i],
+  ["Leadership & ownership", /leadership|stakeholder|ownership|initiative|led a/i],
+  ["Communication & conflict", /conflict|disagree|communicat|feedback|difficult conversation/i],
+  ["Problem solving", /./i]
+];
+
+const inferConceptFromQuestion = (question: string) =>
+  conceptKeywords.find(([, pattern]) => pattern.test(question))?.[0] ?? "Problem solving";
+
 const getActiveSessionForTurn = async (
   userId: string,
   sessionId: string
@@ -277,7 +293,16 @@ export const getAnalytics = async (userId: string) => {
   });
   const evaluatedTurns = await prisma.turn.findMany({
     where: { role: TurnRole.USER, session: { userId } },
-    select: { sessionId: true, metadata: true, session: { select: { mode: true } } }
+    select: {
+      sessionId: true,
+      position: true,
+      metadata: true,
+      session: {
+        select: {
+          turns: { where: { role: TurnRole.ASSISTANT }, orderBy: { position: "asc" }, select: { position: true, content: true } }
+        }
+      }
+    }
   });
   const scoreFromTurnMetadata = (metadata: unknown): number | null => {
     if (!metadata || typeof metadata !== "object" || !("evaluation" in metadata)) return null;
@@ -288,7 +313,8 @@ export const getAnalytics = async (userId: string) => {
   };
   const turnEvaluations = evaluatedTurns.flatMap((turn) => {
     const score = scoreFromTurnMetadata(turn.metadata);
-    return score === null ? [] : [{ score, sessionId: turn.sessionId, topic: turn.session.mode }];
+    const question = [...turn.session.turns].reverse().find((assistantTurn) => assistantTurn.position < turn.position)?.content ?? "";
+    return score === null ? [] : [{ score, sessionId: turn.sessionId, topic: inferConceptFromQuestion(question) }];
   });
   const sessionsWithTurnEvaluations = new Set(turnEvaluations.map((evaluation) => evaluation.sessionId));
   const evalRuns = await prisma.evalRun.findMany({
@@ -297,7 +323,7 @@ export const getAnalytics = async (userId: string) => {
       score: true,
       sessionId: true,
       completedAt: true,
-      question: { select: { topic: true } }
+      question: { select: { prompt: true } }
     }
   });
 
@@ -307,7 +333,7 @@ export const getAnalytics = async (userId: string) => {
     ...turnEvaluations,
     ...evalRuns.flatMap((evaluation) => !evaluation.question || evaluation.score === null || (evaluation.sessionId && sessionsWithTurnEvaluations.has(evaluation.sessionId))
       ? []
-      : [{ score: evaluation.score, sessionId: evaluation.sessionId, topic: evaluation.question.topic }])
+      : [{ score: evaluation.score, sessionId: evaluation.sessionId, topic: inferConceptFromQuestion(evaluation.question.prompt) }])
   ];
 
   // EvalRun is the source of truth. TopicStats is a per-session convenience

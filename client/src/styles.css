@@ -498,6 +498,16 @@ body {
 .better-answer .ai-response-text { margin-top: 10px; }
 .next-question-button { margin-top: 26px; min-width: 164px; }
 
+/* Simple analytics layout, aligned with the dashboard cards. */
+.dashboard-shell > main > h1 { color: var(--color-text-main); font-family: 'Playfair Display', Georgia, serif; font-size: clamp(2rem, 4vw, 3.1rem); letter-spacing: -.03em; margin: 0 0 10px; }
+.dashboard-shell > main > .dashboard-lede { margin-bottom: 30px; }
+.analytics-grid { display: grid; gap: 24px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 24px; }
+.analytics-card { background: var(--color-surface); border: 1px solid rgba(218, 230, 220, .8); border-radius: 20px; box-shadow: 0 10px 40px rgba(0, 0, 0, .02); box-sizing: border-box; padding: 30px; }
+.analytics-card h2, .semantic-insights h2 { color: var(--color-text-main); font-family: 'Playfair Display', Georgia, serif; font-size: 1.5rem; margin: 0; }
+.analytics-card .chart-container { height: 350px; margin-top: 20px; }
+.semantic-insights { background: #fffaf0; border: 1px solid #f1dfbb; border-left: 4px solid #d79531; border-radius: 12px; box-sizing: border-box; margin: 0 0 24px; padding: 22px 24px; }
+.semantic-insights .section-kicker { color: #9a6417; margin: 0 0 7px; }.semantic-insights h2 { color: #694714; }.semantic-insights ul { list-style: none; margin: 15px 0 0; padding: 0; }.semantic-insights li { color: #604d32; line-height: 1.6; }.semantic-insights .session-state { color: #755f41; margin: 12px 0 0; }
+
 /* Analytics */
 .analytics-page { padding-bottom: 64px; }
 .analytics-user-badge { margin-left: auto; }
@@ -720,3 +730,12 @@ body {
   .topic-row small { display: none; }
   .analytics-card-heading { gap: 10px; }
 }
+
+/* Keep Analytics intentionally close to the original dashboard card layout. */
+.analytics-grid { display: grid; gap: 24px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 24px; }
+.analytics-grid .analytics-card, .usage-dashboard { background: var(--color-surface); border: 1px solid rgba(218, 230, 220, .8); border-radius: 20px; box-shadow: 0 10px 40px rgba(0, 0, 0, .02); padding: 30px; }
+.analytics-grid .analytics-card h2, .usage-dashboard h2 { color: var(--color-text-main); font-family: 'Playfair Display', Georgia, serif; font-size: 1.5rem; margin: 0; }
+.analytics-grid .analytics-card .chart-container { height: 350px; margin-top: 20px; }
+.semantic-insights { background: #fffaf0; border: 1px solid #f1dfbb; border-left: 4px solid #d79531; border-radius: 12px; box-sizing: border-box; margin: 0 0 24px; padding: 22px 24px; }
+.semantic-insights .section-kicker { color: #9a6417; margin: 0 0 7px; }.semantic-insights h2 { color: #694714; font-family: 'Playfair Display', Georgia, serif; font-size: 1.5rem; margin: 0; }.semantic-insights ul { list-style: none; margin: 15px 0 0; padding: 0; }.semantic-insights li { color: #604d32; line-height: 1.6; }.semantic-insights .session-state { color: #755f41; margin: 12px 0 0; }
+@media (max-width: 768px) { .analytics-grid { grid-template-columns: 1fr; }.analytics-grid .analytics-card, .usage-dashboard { padding: 24px 22px; } }
