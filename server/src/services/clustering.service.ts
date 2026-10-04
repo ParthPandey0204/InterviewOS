@@ -1,8 +1,20 @@
-import { prisma } from "../prisma/client.js";
 import { Prisma } from "@prisma/client";
-import { createLLMService } from "./llm/index.js";
-import { config } from "../config.js";
-import type { LLMProvider } from "./llm/index.js";
+import { prisma } from "../prisma/client.js";
+
+const LOW_SCORE_THRESHOLD = 3;
+// MiniLM similarity for separately phrased interview questions is much lower
+// than near-duplicate text, so 0.85 prevented nearly every real cluster.
+const SIMILARITY_THRESHOLD = 0.62;
+const MIN_CLUSTER_SIZE = 2;
+
+type QuestionEvidence = {
+  questionId: string;
+  prompt: string;
+  topic: string;
+  averageScore: number;
+  sessionIds: Set<string>;
+  embedding: number[];
+};
 
 type ClusterInsight = {
   clusterLabel: string;
@@ -10,202 +22,133 @@ type ClusterInsight = {
   questionCount: number;
   sessionCount: number;
   questionIds: string[];
-  lastResurfacedAt?: Date | null;
 };
 
-// Helper to compute cosine similarity between two numeric arrays
-function cosineSimilarity(vecA: number[], vecB: number[]): number {
-  if (vecA.length !== vecB.length) return 0;
-  let dotProduct = 0;
+const cosineSimilarity = (a: number[], b: number[]) => {
+  if (a.length !== b.length || !a.length) return 0;
+  let dot = 0;
   let normA = 0;
   let normB = 0;
-  for (let i = 0; i < vecA.length; i++) {
-    dotProduct += vecA[i] * vecB[i];
-    normA += vecA[i] * vecA[i];
-    normB += vecB[i] * vecB[i];
+  for (let i = 0; i < a.length; i += 1) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
   }
-  if (normA === 0 || normB === 0) return 0;
-  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-}
+  return normA && normB ? dot / Math.sqrt(normA * normB) : 0;
+};
 
-// Convert pgvector format to standard JS array
-function parseVector(vectorStr: string): number[] | null {
+const parseVector = (value: string): number[] | null => {
   try {
-    // pgvector format usually "[0.1, 0.2, ...]"
-    return JSON.parse(vectorStr);
-  } catch (e) {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) && parsed.every((item) => typeof item === "number") ? parsed : null;
+  } catch {
     return null;
   }
-}
+};
+
+const labelStopWords = new Set([
+  "about", "after", "answer", "approach", "between", "build", "can", "could", "design", "describe", "does", "explain", "for", "from", "have", "how", "into", "interview", "need", "question", "should", "that", "the", "their", "this", "use", "what", "when", "with", "would", "you", "your"
+]);
+
+// A label must not rely on a remote LLM: an unavailable API key should not
+// hide a locally detected conceptual gap.
+const makeClusterLabel = (questions: QuestionEvidence[]) => {
+  const phraseCounts = new Map<string, number>();
+  const wordCounts = new Map<string, number>();
+  for (const question of questions) {
+    const useful = (question.prompt.toLowerCase().match(/[a-z][a-z0-9-]{2,}/g) ?? []).filter((word) => !labelStopWords.has(word));
+    for (const word of new Set(useful)) wordCounts.set(word, (wordCounts.get(word) ?? 0) + 1);
+    for (let i = 0; i < useful.length - 1; i += 1) {
+      const phrase = `${useful[i]} ${useful[i + 1]}`;
+      phraseCounts.set(phrase, (phraseCounts.get(phrase) ?? 0) + 1);
+    }
+  }
+  const bestPhrase = [...phraseCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  if (bestPhrase && bestPhrase[1] >= 2) return bestPhrase[0];
+  const words = [...wordCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 2).map(([word]) => word);
+  return words.length ? words.join(" ") : `${questions[0].topic} concepts`;
+};
+
+const findConnectedClusters = (questions: QuestionEvidence[]) => {
+  const neighbours = questions.map(() => new Set<number>());
+  for (let i = 0; i < questions.length; i += 1) for (let j = i + 1; j < questions.length; j += 1) {
+    if (cosineSimilarity(questions[i].embedding, questions[j].embedding) >= SIMILARITY_THRESHOLD) {
+      neighbours[i].add(j);
+      neighbours[j].add(i);
+    }
+  }
+  const seen = new Set<number>();
+  const clusters: QuestionEvidence[][] = [];
+  for (let start = 0; start < questions.length; start += 1) {
+    if (seen.has(start)) continue;
+    const pending = [start];
+    const cluster: QuestionEvidence[] = [];
+    seen.add(start);
+    while (pending.length) {
+      const index = pending.pop()!;
+      cluster.push(questions[index]);
+      for (const neighbour of neighbours[index]) if (!seen.has(neighbour)) {
+        seen.add(neighbour);
+        pending.push(neighbour);
+      }
+    }
+    if (cluster.length >= MIN_CLUSTER_SIZE) clusters.push(cluster);
+  }
+  return clusters;
+};
 
 export async function runClusteringJob() {
-  console.log("Starting background clustering job...");
-  
   try {
     const users = await prisma.user.findMany({ select: { id: true } });
-    
-    for (const user of users) {
-      await refreshUserClusterInsights(user.id);
-    }
-    
-    console.log("Background clustering job completed.");
+    await Promise.all(users.map((user) => refreshUserClusterInsights(user.id)));
   } catch (error) {
-    console.error("Failed to run clustering job", error);
+    console.error("Failed to refresh conceptual weak-topic clusters", error);
   }
 }
 
 export async function refreshUserClusterInsights(userId: string) {
-  // Fetch eval runs for the user that have a questionId and a score
   const evalRuns = await prisma.evalRun.findMany({
-    where: {
-      userId,
-      questionId: { not: null },
-      score: { not: null }
-    },
-    include: {
-      question: true
-    }
+    where: { userId, questionId: { not: null }, score: { not: null } },
+    select: { questionId: true, sessionId: true, score: true, question: { select: { prompt: true, topic: true } } }
   });
-
-  if (evalRuns.length === 0) return;
-
-  // We need to fetch embeddings separately because they are of type Unsupported("vector")
-  // and Prisma might not return them directly in a standard query. Let's use raw query for embeddings.
-  const questionIds = Array.from(new Set(evalRuns.map(run => run.questionId!)));
-  
-  if (questionIds.length === 0) return;
-
-  const embeddingsQuery = await prisma.$queryRaw<Array<{ questionId: string, embedding: string }>>`
-    SELECT "questionId", embedding::text 
-    FROM "QuestionEmbedding" 
-    WHERE "questionId" IN (${Prisma.join(questionIds)})
-  `;
-
-  const embeddingMap = new Map<string, number[]>();
-  for (const row of embeddingsQuery) {
-    const vec = parseVector(row.embedding);
-    if (vec) {
-      embeddingMap.set(row.questionId, vec);
-    }
-  }
-
-  // Group eval runs by questionId and calculate avg score per question
-  const questionScores = new Map<string, { totalScore: number; count: number; prompt: string }>();
-  for (const run of evalRuns) {
-    const qid = run.questionId!;
-    const q = run.question!;
-    const current = questionScores.get(qid) || { totalScore: 0, count: 0, prompt: q.prompt };
-    current.totalScore += run.score!;
-    current.count += 1;
-    questionScores.set(qid, current);
-  }
-
-  const lowScoringQuestions = Array.from(questionScores.entries())
-    .map(([qid, data]) => ({
-      questionId: qid,
-      prompt: data.prompt,
-      averageScore: data.totalScore / data.count,
-      sessionCount: data.count,
-      embedding: embeddingMap.get(qid)
-    }))
-    .filter(q => q.embedding && q.averageScore < 3.0); // Focus on scores < 3.0 out of 5
-
-  if (lowScoringQuestions.length < 2) {
-    // Not enough data to cluster
+  const questionIds = [...new Set(evalRuns.map((run) => run.questionId!).filter(Boolean))];
+  if (questionIds.length < MIN_CLUSTER_SIZE) {
+    await prisma.userClusterInsight.deleteMany({ where: { userId } });
     return;
   }
-
-  // Simple clustering: N^2 comparison, group items with similarity > 0.85
-  const clusters: Array<typeof lowScoringQuestions> = [];
-  const clusteredIds = new Set<string>();
-
-  for (let i = 0; i < lowScoringQuestions.length; i++) {
-    const qA = lowScoringQuestions[i];
-    if (clusteredIds.has(qA.questionId)) continue;
-    
-    const currentCluster = [qA];
-    clusteredIds.add(qA.questionId);
-
-    for (let j = i + 1; j < lowScoringQuestions.length; j++) {
-      const qB = lowScoringQuestions[j];
-      if (clusteredIds.has(qB.questionId)) continue;
-
-      const sim = cosineSimilarity(qA.embedding!, qB.embedding!);
-      if (sim > 0.85) {
-        currentCluster.push(qB);
-        clusteredIds.add(qB.questionId);
-      }
-    }
-
-    if (currentCluster.length >= 2) { // Only form clusters of 2 or more questions
-      clusters.push(currentCluster);
-    }
+  const rows = await prisma.$queryRaw<Array<{ questionId: string; embedding: string }>>`
+    SELECT "questionId", embedding::text FROM "QuestionEmbedding"
+    WHERE "questionId" IN (${Prisma.join(questionIds)}) AND dimensions = 384
+  `;
+  const embeddings = new Map(rows.map((row) => [row.questionId, parseVector(row.embedding)]).filter((entry): entry is [string, number[]] => entry[1] !== null));
+  const evidence = new Map<string, Omit<QuestionEvidence, "averageScore" | "embedding"> & { total: number; count: number }>();
+  for (const run of evalRuns) {
+    if (!run.questionId || !run.question || !embeddings.has(run.questionId)) continue;
+    const item = evidence.get(run.questionId) ?? { questionId: run.questionId, prompt: run.question.prompt, topic: run.question.topic, total: 0, count: 0, sessionIds: new Set<string>() };
+    item.total += run.score!;
+    item.count += 1;
+    if (run.sessionId) item.sessionIds.add(run.sessionId);
+    evidence.set(run.questionId, item);
   }
-
-  if (clusters.length === 0) return;
-
-  const provider: LLMProvider = config.llm.defaultProvider === "groq" ? "groq" : "gemini";
-  const llm = createLLMService(provider);
-  const newInsights: ClusterInsight[] = [];
-
-  for (const cluster of clusters) {
-    const totalScore = cluster.reduce((sum, q) => sum + q.averageScore, 0);
-    const avgScore = totalScore / cluster.length;
-    const sessionCount = cluster.reduce((sum, q) => sum + q.sessionCount, 0);
-
-    const prompts = cluster.map(q => q.prompt).join("\n- ");
-    
-    try {
-      const llmResult = await llm.generate({
-        messages: [
-          {
-            role: "system",
-            content: "You are an assistant that summarizes a list of technical interview questions. Your task is to output a short, concise label (2-5 words) that represents the core technical concept these questions have in common. Do not include any extra text."
-          },
-          {
-            role: "user",
-            content: "Questions:\n- " + prompts
-          }
-        ],
-        options: { maxTokens: 20 }
-      });
-
-      const clusterLabel = llmResult.content.trim().replace(/^"|"$/g, '');
-      
-      newInsights.push({
-        clusterLabel,
-        averageScore: avgScore,
-        questionCount: cluster.length,
-        sessionCount,
-        questionIds: cluster.map((question) => question.questionId)
-      });
-    } catch (e) {
-      console.error("Failed to generate cluster label with LLM", e);
-    }
-  }
-
-  if (newInsights.length > 0) {
-    // Overwrite old insights for the user
-    await prisma.$transaction(async (tx) => {
-      // Preserve the existing interval when the same conceptual cluster is
-      // recomputed with more evidence.
-      const clusterInsights = (tx as any).userClusterInsight;
-      const existingInsights: Array<{ clusterLabel: string; lastResurfacedAt: Date | null }> = await clusterInsights.findMany({
-        where: { userId },
-        select: { clusterLabel: true, lastResurfacedAt: true }
-      });
-      const lastResurfacedByLabel = new Map(existingInsights.map((insight) => [insight.clusterLabel, insight.lastResurfacedAt]));
-      await clusterInsights.deleteMany({ where: { userId } });
-      
-      for (const insight of newInsights) {
-        await clusterInsights.create({
-          data: {
-            userId,
-            ...insight,
-            lastResurfacedAt: lastResurfacedByLabel.get(insight.clusterLabel) ?? null
-          }
-        });
-      }
+  const lowScoring = [...evidence.values()]
+    .map((item): QuestionEvidence => ({ ...item, averageScore: item.total / item.count, embedding: embeddings.get(item.questionId)! }))
+    .filter((item) => item.averageScore < LOW_SCORE_THRESHOLD);
+  const insights: ClusterInsight[] = findConnectedClusters(lowScoring).map((cluster) => {
+    const sessionIds = new Set(cluster.flatMap((question) => [...question.sessionIds]));
+    return {
+      clusterLabel: makeClusterLabel(cluster),
+      averageScore: cluster.reduce((total, question) => total + question.averageScore, 0) / cluster.length,
+      questionCount: cluster.length,
+      sessionCount: sessionIds.size,
+      questionIds: cluster.map((question) => question.questionId)
+    };
+  });
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.userClusterInsight.findMany({ where: { userId }, select: { clusterLabel: true, lastResurfacedAt: true } });
+    const lastResurfaced = new Map(existing.map((insight) => [insight.clusterLabel, insight.lastResurfacedAt]));
+    await tx.userClusterInsight.deleteMany({ where: { userId } });
+    if (insights.length) await tx.userClusterInsight.createMany({
+      data: insights.map((insight) => ({ ...insight, userId, lastResurfacedAt: lastResurfaced.get(insight.clusterLabel) ?? null }))
     });
-  }
+  });
 }

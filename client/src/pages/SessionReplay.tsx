@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiRequest } from "../api/client";
 import { ScoreCard, type EvaluationScores } from "../components/ScoreCard";
+import { AiResponseText } from "../components/AiResponseText";
 
 type Turn = { id: string; role: "USER" | "ASSISTANT"; content: string; metadata?: { evaluation?: EvaluationScores } };
 type Session = { id: string; mode: string; difficulty: string; targetCompany: string | null; turns: Turn[] };
@@ -45,7 +46,7 @@ export const SessionReplay: React.FC = () => {
             return (
               <div key={turn.id} className={`turn-bubble ${turn.role.toLowerCase()}-turn`}>
                 <div className="turn-role">{turn.role === "ASSISTANT" ? "Interviewer" : "You"}</div>
-                <div className="turn-content">{turn.content}</div>
+                <AiResponseText className="turn-content" content={turn.content} />
                 {evaluation && (
                   <div className="turn-evaluation">
                     <ScoreCard scores={evaluation} />

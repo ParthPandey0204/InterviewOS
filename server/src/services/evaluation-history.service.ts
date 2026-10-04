@@ -38,4 +38,26 @@ export const recordEvaluationHistory = async (input: {
       completedAt: new Date()
     }
   });
+
+  // Dashboard and analytics use this per-session rollup as a fast summary.
+  // Keep it in sync with the source evaluation rather than leaving charts empty.
+  await prisma.topicStats.upsert({
+    where: { sessionId_topic: { sessionId: input.sessionId, topic: input.mode } },
+    create: {
+      sessionId: input.sessionId,
+      topic: input.mode,
+      attempts: 1,
+      correct: score >= 3 ? 1 : 0,
+      score,
+      lastSeenAt: new Date()
+    },
+    update: {
+      attempts: { increment: 1 },
+      correct: score >= 3 ? { increment: 1 } : undefined,
+      // Prisma cannot atomically average a column without a separate total;
+      // analytics reads EvalRun as its source of truth for historical averages.
+      score,
+      lastSeenAt: new Date()
+    }
+  });
 };

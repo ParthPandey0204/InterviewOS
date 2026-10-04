@@ -184,10 +184,6 @@ const persistTurnPair = async (input: {
       data: { updatedAt: new Date() }
     });
 
-    void indexQuestion({ userId: input.userId, prompt: input.nextQuestion, mode: input.mode, difficulty: input.difficulty }).catch(error => {
-      console.error("Question embedding failed", error);
-    });
-
     return [createdUserTurn, createdAssistantTurn] as const;
   });
 };
@@ -275,36 +271,71 @@ export const getAnalytics = async (userId: string) => {
     select: {
       id: true,
       mode: true,
+      status: true,
       createdAt: true,
-      topicStats: {
-        select: { score: true }
-      }
+    }
+  });
+  const evaluatedTurns = await prisma.turn.findMany({
+    where: { role: TurnRole.USER, session: { userId } },
+    select: { sessionId: true, metadata: true, session: { select: { mode: true } } }
+  });
+  const scoreFromTurnMetadata = (metadata: unknown): number | null => {
+    if (!metadata || typeof metadata !== "object" || !("evaluation" in metadata)) return null;
+    const evaluation = (metadata as { evaluation?: unknown }).evaluation;
+    if (!evaluation || typeof evaluation !== "object") return null;
+    const values = ["correctness", "clarity", "depth"].map((key) => (evaluation as Record<string, unknown>)[key]);
+    return values.every((value) => typeof value === "number") ? (values[0] as number + values[1] as number + values[2] as number) / 3 : null;
+  };
+  const turnEvaluations = evaluatedTurns.flatMap((turn) => {
+    const score = scoreFromTurnMetadata(turn.metadata);
+    return score === null ? [] : [{ score, sessionId: turn.sessionId, topic: turn.session.mode }];
+  });
+  const sessionsWithTurnEvaluations = new Set(turnEvaluations.map((evaluation) => evaluation.sessionId));
+  const evalRuns = await prisma.evalRun.findMany({
+    where: { userId, score: { not: null }, questionId: { not: null } },
+    select: {
+      score: true,
+      sessionId: true,
+      completedAt: true,
+      question: { select: { topic: true } }
     }
   });
 
-  const topicStats = await prisma.topicStats.findMany({
-    where: { session: { userId } },
-    select: { topic: true, score: true }
-  });
+  // Older sessions stored scores in turn metadata but did not create EvalRun;
+  // use that durable client-visible history first, then fall back to EvalRun.
+  const evaluations = [
+    ...turnEvaluations,
+    ...evalRuns.flatMap((evaluation) => !evaluation.question || evaluation.score === null || (evaluation.sessionId && sessionsWithTurnEvaluations.has(evaluation.sessionId))
+      ? []
+      : [{ score: evaluation.score, sessionId: evaluation.sessionId, topic: evaluation.question.topic }])
+  ];
 
-  // Calculate topic-wise averages
+  // EvalRun is the source of truth. TopicStats is a per-session convenience
+  // row and older sessions may not have one, which previously made analytics
+  // appear empty despite completed, scored answers.
   const topicMap = new Map<string, { total: number; count: number }>();
-  for (const stat of topicStats) {
-    if (stat.score !== null) {
-      const current = topicMap.get(stat.topic) || { total: 0, count: 0 };
-      topicMap.set(stat.topic, { total: current.total + stat.score, count: current.count + 1 });
+  const scoresBySession = new Map<string, number[]>();
+  for (const evaluation of evaluations) {
+    const currentTopic = topicMap.get(evaluation.topic) ?? { total: 0, count: 0 };
+    currentTopic.total += evaluation.score;
+    currentTopic.count += 1;
+    topicMap.set(evaluation.topic, currentTopic);
+    if (evaluation.sessionId) {
+      const scores = scoresBySession.get(evaluation.sessionId) ?? [];
+      scores.push(evaluation.score);
+      scoresBySession.set(evaluation.sessionId, scores);
     }
   }
-
   const topicAverages = Array.from(topicMap.entries()).map(([topic, data]) => ({
     topic,
-    averageScore: Math.round((data.total / data.count) * 20) // Assuming max score is 5, scale to 100
-  }));
+    averageScore: Math.round((data.total / data.count) * 20),
+    attempts: data.count
+  })).sort((a, b) => a.averageScore - b.averageScore);
 
-  // Calculate session scores over time
-  const sessionsOverTime = sessions.map(session => {
-    const scores = session.topicStats.map(s => s.score).filter((s): s is number => s !== null);
-    const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+  const sessionsOverTime = sessions.flatMap(session => {
+    const scores = scoresBySession.get(session.id);
+    if (!scores?.length) return [];
+    const avg = scores.reduce((total, score) => total + score, 0) / scores.length;
     return {
       date: session.createdAt.toISOString().split("T")[0],
       score: Math.round(avg * 20),
@@ -351,6 +382,13 @@ export const getAnalytics = async (userId: string) => {
     topicAverages,
     sessionsOverTime,
     clusterInsights,
+    overview: {
+      evaluatedAnswers: evaluations.length,
+      completedSessions: sessions.filter((session) => session.status === SessionStatus.COMPLETED).length,
+      averageScore: evaluations.length ? Math.round(evaluations.reduce((total, evaluation) => total + evaluation.score, 0) / evaluations.length * 20) : null,
+      strongestTopic: topicAverages.at(-1)?.topic ?? null,
+      focusTopic: topicAverages[0]?.topic ?? null
+    },
     usage
   };
 };
@@ -483,9 +521,7 @@ export const startSessionStream = async (userId: string, sessionId: string) => {
         data: { sessionId, role: TurnRole.ASSISTANT, content: question, position: 0, metadata: { provider, model } },
         select: turnSelect
       });
-      void indexQuestion({ userId, prompt: question, mode: session.mode, difficulty: session.difficulty }).catch(error => {
-        console.error("Question embedding failed", error);
-      });
+      await indexQuestion({ userId, prompt: question, mode: session.mode, difficulty: session.difficulty });
       return { turn };
     }
   };
@@ -593,7 +629,7 @@ export const createTurnStream = async (
           model: evaluationResult.model,
           scores: evaluationResult.scores
         });
-        void refreshUserClusterInsights(userId);
+        await refreshUserClusterInsights(userId);
       }
 
       const [userTurn, assistantTurn] = await persistTurnPair({
@@ -607,6 +643,8 @@ export const createTurnStream = async (
         model,
         evaluation: evaluationResult?.scores
       });
+
+      await indexQuestion({ userId, prompt: nextQuestion, mode: session.mode, difficulty: session.difficulty });
 
       return {
         turn: userTurn,
