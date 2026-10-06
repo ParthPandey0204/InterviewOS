@@ -20,7 +20,7 @@ flowchart LR
 
 ## Reliability story
 
-The evaluator uses a versioned, calibrated rubric and few-shot examples. The measured harness results show a 96.7–97.6% reduction in score variance versus the baseline prompt. See [the methodology and reliability-variance chart](docs/SCORING_PROMPT_VERSIONING.md).
+The evaluator has versioned baseline and calibrated prompts. Its benchmark harness calls the configured LLM for both versions and reports per-sample run-to-run variance; no reliability percentage is published until that benchmark is run and recorded. See [the methodology](docs/SCORING_PROMPT_VERSIONING.md).
 
 ## Features
 
@@ -35,13 +35,13 @@ The evaluator uses a versioned, calibrated rubric and few-shot examples. The mea
 
 ## Screenshots and demo
 
-Add exported screenshots to `docs/screenshots/` and link them here before publishing. Record the planned 3-minute walkthrough after deployment: create a company-targeted session, submit a weak response, show the review chart and improved answer, then open Analytics to show weak-topic clustering and UsageLog metrics.
+Screenshots and a 90-second demo video are not yet recorded. Before publishing, deploy the app, then show a company-targeted session, a weak answer's review chart and improved answer, and Analytics with weak-topic clustering and UsageLog metrics.
 
-**Live link:** add the deployed Vercel URL here after deployment.
+**Live link:** not deployed yet.
 
 ## Real-user study
 
-Invite 15–20 consenting classmates only after deployment. Record aggregate participation, completed-session count, and average score without publishing personal data. These metrics must be collected from real usage rather than fabricated for a resume.
+No real-user study has been run. After deployment, invite consenting participants and publish only aggregate participation, completed-session count, and average-score data.
 
 Monorepo for InterviewOS:
 
@@ -127,18 +127,13 @@ Then update Render `CLIENT_ORIGIN` and `CORS_ORIGINS` to the final Vercel URL.
 
 ## LLM Scoring Prompt Reliability & Versioning
 
-InterviewOS includes an automated evaluation harness and versioned prompt architecture designed to reduce LLM grading variance and deliver deterministic, reliable candidate scoring.
+InterviewOS includes an automated evaluation harness and versioned prompt architecture for measuring—not assuming—LLM grading reliability.
 
-![InterviewOS Scoring Prompt Reliability Chart](file:///C:/Users/Parth%20Pandey/.gemini/antigravity/brain/201abac0-5917-4e36-b960-84e9903b3249/prompt_variance_chart_1785675122046.jpg)
+![Scoring benchmark status](docs/scoring-benchmark-status.svg)
 
-### Reliability Improvements (v1.0 Baseline vs v2.0 Calibrated)
+Run `npm run eval:harness -- --runs=10 --persist` with valid provider credentials to generate reproducible figures. The benchmark persists only real LLM responses under a dedicated non-user account; omit `--persist` for a dry run.
 
-- **Correctness Variance**: `2.6400` → `0.0820` (**-96.9%**)
-- **Clarity Variance**: `1.6900` → `0.0450` (**-97.3%**)
-- **Depth Variance**: `2.7600` → `0.0910` (**-96.7%**)
-- **Overall Score Variance**: `2.2668` → `0.0540` (**-97.6%**)
-
-For full prompt engineering details, benchmarking methodology, and interview talking points, see [SCORING_PROMPT_VERSIONING.md](file:///c:/Users/Parth%20Pandey/OneDrive/Desktop/InterviewOS/docs/SCORING_PROMPT_VERSIONING.md).
+For the prompt definitions and methodology, see [SCORING_PROMPT_VERSIONING.md](docs/SCORING_PROMPT_VERSIONING.md).
 
 ## Useful Commands
 

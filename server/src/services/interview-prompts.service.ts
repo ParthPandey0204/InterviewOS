@@ -21,6 +21,8 @@ export type EvaluationScores = {
   depth: number;
 };
 
+export type EvaluationPromptVersion = "v1" | "v2";
+
 const difficultyCalibration: Record<QuestionDifficulty, string> = {
   EASY:
     "Ask foundational questions. Prefer direct definitions, simple examples, and one-step reasoning. Avoid obscure edge cases unless the candidate introduces them.",
@@ -133,8 +135,16 @@ export const buildEvaluationMessages = (input: {
   question: string;
   answer: string;
   session?: InterviewPromptSession;
+  version?: EvaluationPromptVersion;
 }): LLMMessage[] => {
   const context = input.session ? `\n\nSession context:\n${formatSessionContext(input.session)}` : "";
+  const version = input.version ?? "v2";
+  const calibration = version === "v2"
+    ? ["Rubric definition:", rubricDefinition, fewShotExamples]
+    : [
+        "Score correctness, clarity, and depth from 0 to 5.",
+        "Use your best judgment. A score of 5 is strong; 0 is a non-answer."
+      ];
 
   return [
     {
@@ -146,9 +156,7 @@ export const buildEvaluationMessages = (input: {
         "Each score must be an integer from 0 to 5.",
         "feedback must be a concise, constructive explanation of the most important improvement.",
         "betterAnswer must be a concise, interview-ready answer that correctly addresses the question. Do not refer to the candidate's answer.",
-        "Rubric definition:",
-        rubricDefinition,
-        fewShotExamples,
+        ...calibration,
         context.trim()
       ]
         .filter(Boolean)

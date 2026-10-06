@@ -16,7 +16,8 @@
     "prisma:migrate": "npm run prisma:migrate --workspace server",
     "prisma:seed": "npm run prisma:seed --workspace server",
     "db:seed": "npm run seed --workspace server",
-    "eval:harness": "node scripts/eval-harness.js"
+    "eval:harness": "tsx scripts/eval-harness.js",
+    "test": "npm run test --workspace server"
   },
   "devDependencies": {
     "npm-run-all": "^4.1.5"

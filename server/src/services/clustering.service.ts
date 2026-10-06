@@ -7,7 +7,7 @@ const LOW_SCORE_THRESHOLD = 3;
 const SIMILARITY_THRESHOLD = 0.62;
 const MIN_CLUSTER_SIZE = 2;
 
-type QuestionEvidence = {
+export type QuestionEvidence = {
   questionId: string;
   prompt: string;
   topic: string;
@@ -69,7 +69,7 @@ const makeClusterLabel = (questions: QuestionEvidence[]) => {
   return words.length ? words.join(" ") : `${questions[0].topic} concepts`;
 };
 
-const findConnectedClusters = (questions: QuestionEvidence[]) => {
+export const findConnectedClusters = (questions: QuestionEvidence[]) => {
   const neighbours = questions.map(() => new Set<number>());
   for (let i = 0; i < questions.length; i += 1) for (let j = i + 1; j < questions.length; j += 1) {
     if (cosineSimilarity(questions[i].embedding, questions[j].embedding) >= SIMILARITY_THRESHOLD) {

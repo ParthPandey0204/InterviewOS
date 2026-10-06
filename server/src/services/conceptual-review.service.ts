@@ -14,7 +14,7 @@ type StoredClusterInsight = {
   lastResurfacedAt: Date | null;
 };
 
-const daysUntilReview = (averageScore: number) => {
+export const daysUntilReview = (averageScore: number) => {
   if (averageScore <= 1.5) return 1;
   if (averageScore <= 2.5) return 2;
   return 4;
@@ -29,7 +29,7 @@ export const selectConceptualReviewFocus = async (input: {
   userId: string;
   difficulty: QuestionDifficulty;
 }): Promise<ConceptualReviewFocus | null> => {
-  const insights: StoredClusterInsight[] = await (prisma as any).userClusterInsight.findMany({
+  const insights: StoredClusterInsight[] = await prisma.userClusterInsight.findMany({
     where: { userId: input.userId, averageScore: { lt: 3 }, questionIds: { isEmpty: false } },
     orderBy: [{ averageScore: "asc" }, { lastResurfacedAt: "asc" }],
     select: { id: true, clusterLabel: true, averageScore: true, questionIds: true, lastResurfacedAt: true }
@@ -55,7 +55,7 @@ export const selectConceptualReviewFocus = async (input: {
 
   if (questions.length === 0) return null;
 
-  await (prisma as any).userClusterInsight.update({
+  await prisma.userClusterInsight.update({
     where: { id: insight.id },
     data: { lastResurfacedAt: new Date() }
   });

@@ -8,7 +8,15 @@ export const setAccessToken = (token: string | null) => {
 
 export const getAccessToken = () => currentAccessToken;
 
-export async function apiRequest<T = any>(
+type ApiError = Error & { status: number; data: unknown };
+
+const messageFromPayload = (payload: unknown) => {
+  if (typeof payload !== "object" || payload === null) return undefined;
+  const data = payload as { error?: { message?: unknown }; message?: unknown };
+  return typeof data.error?.message === "string" ? data.error.message : typeof data.message === "string" ? data.message : undefined;
+};
+
+export async function apiRequest<T = unknown>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
@@ -36,9 +44,9 @@ export async function apiRequest<T = any>(
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const error = new Error(data.error?.message || data.message || `Request failed with status ${response.status}`);
-    (error as any).status = response.status;
-    (error as any).data = data;
+    const error = new Error(messageFromPayload(data) || `Request failed with status ${response.status}`) as ApiError;
+    error.status = response.status;
+    error.data = data;
     throw error;
   }
 

@@ -9,7 +9,7 @@ interface SeedQuestion {
   idealAnswer: string;
   source: string;
   tags: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 const seedQuestions: SeedQuestion[] = [

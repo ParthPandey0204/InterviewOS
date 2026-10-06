@@ -34,8 +34,8 @@ export const Login: React.FC = () => {
     try {
       await login(email, password);
       navigate("/", { replace: true });
-    } catch (err: any) {
-      setError(err.message || "Failed to sign in. Please check your credentials.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to sign in. Please check your credentials.");
     } finally {
       setIsSubmitting(false);
     }

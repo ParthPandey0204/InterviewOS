@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { config } from "../config.js";
 import { HttpError } from "../middleware/error.js";
-import { buildEvaluationMessages } from "./interview-prompts.service.js";
+import { buildEvaluationMessages, type EvaluationPromptVersion } from "./interview-prompts.service.js";
 import { createLLMService, type LLMGenerateResult, type LLMProvider } from "./llm/index.js";
 import { logUsage } from "./usage-log.service.js";
 
@@ -11,6 +11,7 @@ type EvaluateAnswerInput = {
   provider?: LLMProvider;
   userId?: string;
   sessionId?: string;
+  promptVersion?: EvaluationPromptVersion;
 };
 
 export const evaluationScoresSchema = z
@@ -77,11 +78,14 @@ export const evaluateAnswer = async (input: EvaluateAnswerInput) => {
     result = await llm.generate({
       messages: buildEvaluationMessages({
         question: input.question,
-        answer: input.answer
+        answer: input.answer,
+        version: input.promptVersion
       }),
       options: {
         // Leave enough room for the final JSON payload.
-        maxTokens: 600
+        maxTokens: 600,
+        // v2 is intentionally deterministic; v1 remains the historical baseline.
+        temperature: input.promptVersion === "v1" ? 0.7 : 0
       }
     });
 

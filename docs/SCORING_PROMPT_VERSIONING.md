@@ -1,14 +1,14 @@
 # InterviewOS Scoring Prompt Versioning & Reliability Benchmark
 
-This document details the versioning, prompt engineering iteration, and empirical reliability measurements for InterviewOS's automated LLM scoring pipeline.
+This document details prompt versioning and the reproducible methodology for measuring InterviewOS's automated LLM scoring pipeline. Results are intentionally not claimed until a real benchmark run is recorded.
 
-![InterviewOS Scoring Prompt Reliability Chart](file:///C:/Users/Parth%20Pandey/.gemini/antigravity/brain/201abac0-5917-4e36-b960-84e9903b3249/prompt_variance_chart_1785675122046.jpg)
+![Scoring benchmark status](scoring-benchmark-status.svg)
 
 ---
 
 ## 1. Prompt Evolution Overview
 
-To deliver consistent, production-grade technical interview scoring, we iterated from a uncalibrated baseline prompt (`v1.0`) to a strictly calibrated, few-shot prompt with zero-temperature enforcement (`v2.0`).
+The application provides an uncalibrated baseline (`v1.0`) and a calibrated, few-shot prompt (`v2.0`). The harness measures their behavior using the same benchmark answers.
 
 ### Version 1.0 (Baseline)
 - **Prompt Structure**: High-level rubric descriptions without explicit score point definitions.
@@ -16,28 +16,25 @@ To deliver consistent, production-grade technical interview scoring, we iterated
 - **Sampling Temperature**: `0.7` (Default sampling temperature).
 - **Characteristics**: High scoring variance across repeat evaluation runs on identical answers; subject to LLM hallucination and grading inconsistency.
 
-### Version 2.0 (Calibrated & Optimized)
+### Version 2.0 (Calibrated)
 - **Prompt Structure**: Strict integer scale definitions (0 to 5) per rubric dimension (`Correctness`, `Clarity`, `Depth`).
 - **Examples**: 3 structured few-shot evaluation examples representing different quality tiers (Optimal, Partial, Non-answer).
 - **Sampling Temperature**: `0.0` (Enforced zero-temperature for deterministic outputs).
-- **Characteristics**: Near-zero variance across repeat evaluation runs; highly reliable and repeatable scoring.
+- **Characteristics**: Designed to make scoring criteria clearer. Reliability is a measured outcome, not a guarantee.
 
 ---
 
-## 2. Empirical Benchmark Results (300 Runs per Version)
+## 2. Reproducible benchmark procedure
 
-Both versions were evaluated across **30 hand-written benchmark sample answers** (10 per topic for DSA, System Design, and Behavioral) across **10 evaluation runs per sample** (300 total runs stored in the `EvalRun` database table).
+The 30 hand-written benchmark answers span DSA, system design, and behavioral questions. Run each answer repeatedly against both prompt versions:
 
-### Variance Reduction Summary Table
+```bash
+npm run eval:harness -- --runs=10 --persist
+```
 
-| Rubric Axis | Baseline v1.0 Variance ($\sigma^2$) | Calibrated v2.0 Variance ($\sigma^2$) | Variance Reduction | Baseline Std Dev ($\sigma$) | Calibrated Std Dev ($\sigma$) |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Correctness** | `2.6400` | `0.0820` | **-96.9%** | `1.6248` | `0.2864` |
-| **Clarity** | `1.6900` | `0.0450` | **-97.3%** | `1.3000` | `0.2121` |
-| **Depth** | `2.7600` | `0.0910` | **-96.7%** | `1.6613` | `0.3017` |
-| **Overall Score** | `2.2668` | `0.0540` | **-97.6%** | `1.5056` | `0.2324` |
+The harness calls `evaluateAnswer` for every run, saves only actual LLM responses under the dedicated `eval-harness@interviewos.internal` account, and reports the mean of each sample's run-to-run variance. It never derives a score from an answer's expected-quality label. Omit `--persist` for a dry run.
 
-> **Key Finding**: Calibrating rubric descriptions, adding few-shot examples, and enforcing `temperature: 0.0` reduced evaluation variance by **over 97%**, converting non-deterministic LLM feedback into reliable, reproducible candidate scoring.
+Record model name, provider, date, call failures, run count, and the printed variance table alongside any future reliability claim. Do not compare cross-sample score spread with repeat-run variance.
 
 ---
 

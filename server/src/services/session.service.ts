@@ -2,7 +2,7 @@ import { QuestionDifficulty, SessionStatus, TurnRole } from "@prisma/client";
 import { config } from "../config.js";
 import { HttpError } from "../middleware/error.js";
 import { prisma } from "../prisma/client.js";
-import { evaluateAnswer } from "./answer-evaluation.service.js";
+import { evaluateAnswer, type AnswerEvaluation } from "./answer-evaluation.service.js";
 import { buildInterviewerSystemPrompt, buildNextQuestionMessages } from "./interview-prompts.service.js";
 import { createLLMService, type LLMGenerateRequest, type LLMGenerateResult, type LLMProvider } from "./llm/index.js";
 import { defaultModelForProvider, logUsage } from "./usage-log.service.js";
@@ -369,12 +369,11 @@ export const getAnalytics = async (userId: string) => {
     };
   });
 
-  // @ts-ignore - Ignore type error if prisma hasn't been generated yet
-  const clusterInsights = await prisma.userClusterInsight?.findMany({
+  const clusterInsights = await prisma.userClusterInsight.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
     select: { clusterLabel: true, averageScore: true, questionCount: true, sessionCount: true }
-  }) || [];
+  });
 
   const usageLogs = await prisma.usageLog.findMany({
     where: { userId },
@@ -434,7 +433,7 @@ export const createTurn = async (
   const previousQuestion = previousAssistantTurn?.content ?? "Please introduce yourself and explain your background.";
 
   let llmResult: LLMGenerateResult;
-  let evaluationResult: any = null;
+  let evaluationResult: { provider: LLMProvider; model: string; scores: AnswerEvaluation } | null = null;
 
   try {
     const [genResult, evalResult] = await Promise.all([

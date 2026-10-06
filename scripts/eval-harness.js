@@ -275,46 +275,6 @@ export const evalDataset = [
   }
 ];
 
-// Evaluator based on strict scoring rubrics
-function evaluateRubric(item) {
-  let correctness = 3;
-  let clarity = 3;
-  let depth = 3;
-
-  if (item.expectedQuality.includes("Excellent")) {
-    correctness = 5; clarity = 5; depth = 5;
-  } else if (item.expectedQuality.includes("Strong")) {
-    correctness = 4; clarity = 5; depth = 4;
-  } else if (item.expectedQuality.includes("Good")) {
-    correctness = 4; clarity = 4; depth = 4;
-  } else if (item.expectedQuality.includes("Moderate")) {
-    correctness = 3; clarity = 4; depth = 3;
-  } else if (item.expectedQuality.includes("Average")) {
-    correctness = 3; clarity = 3; depth = 2;
-  } else if (item.expectedQuality.includes("Flawed")) {
-    correctness = 2; clarity = 3; depth = 2;
-  } else if (item.expectedQuality.includes("Weak")) {
-    correctness = 2; clarity = 2; depth = 1;
-  } else if (item.expectedQuality.includes("Poor")) {
-    correctness = 1; clarity = 2; depth = 1;
-  } else if (item.expectedQuality.includes("Bad")) {
-    correctness = 0; clarity = 2; depth = 0;
-  } else {
-    correctness = 0; clarity = 1; depth = 0;
-  }
-
-  const avg = Number(((correctness + clarity + depth) / 3).toFixed(2));
-  return {
-    correctness,
-    clarity,
-    depth,
-    score: avg
-  };
-}
-
-/**
- * Statistical Helper Functions for Mean & Variance
- */
 function calculateStats(numbers) {
   const count = numbers.length;
   if (count === 0) {
@@ -341,134 +301,82 @@ function calculateStats(numbers) {
   };
 }
 
-async function getOrCreateEvalUser() {
-  let user = await prisma.user.findFirst();
-  if (!user) {
-    user = await prisma.user.create({
-      data: {
-        email: "eval-harness@interviewos.internal",
-        name: "Eval Harness Runner",
-        passwordHash: "system-eval-hash-placeholder"
-      }
-    });
-  }
-  return user;
+const scoreFor = (scores) => (scores.correctness + scores.clarity + scores.depth) / 3;
+
+const providerToUsageProvider = (provider) => provider === "groq" ? UsageProvider.GROQ : UsageProvider.GEMINI;
+
+const parsedRuns = () => {
+  const value = process.argv.find((argument) => argument.startsWith("--runs="));
+  const count = value ? Number(value.slice("--runs=".length)) : 1;
+  if (!Number.isInteger(count) || count < 1 || count > 20) throw new Error("--runs must be an integer from 1 to 20");
+  return count;
+};
+
+const shouldPersist = () => process.argv.includes("--persist");
+
+async function getBenchmarkUser() {
+  return prisma.user.upsert({
+    where: { email: "eval-harness@interviewos.internal" },
+    update: { name: "Evaluation Harness (non-user data)" },
+    create: {
+      email: "eval-harness@interviewos.internal",
+      name: "Evaluation Harness (non-user data)",
+      passwordHash: "not-for-login"
+    }
+  });
 }
 
 async function runEvalHarness() {
-  console.log("\n==========================================================");
-  console.log("  InterviewOS Answer Evaluation Harness (300 Runs Total)");
-  console.log("  30 Samples x 10 Scoring Runs Stored in EvalRun Table");
-  console.log("==========================================================\n");
+  // Load the service only after server/.env has been applied above.
+  const { evaluateAnswer } = await import("../server/src/services/answer-evaluation.service.ts");
+  const runsPerSample = parsedRuns();
+  const persist = shouldPersist();
+  const benchmarkUser = persist ? await getBenchmarkUser() : null;
+  const byVersion = new Map(["v1", "v2"].map((version) => [version, new Map()]));
+  const failures = [];
+  console.log(`Running ${evalDataset.length} samples × ${runsPerSample} repeats × 2 prompt versions against the configured LLM.`);
+  console.log(persist ? `Persisting real outputs under ${benchmarkUser.email}.` : "Dry run: use --persist to save real outputs to EvalRun.");
 
-  const evalUser = await getOrCreateEvalUser();
-  console.log(`[Database] Using Eval User: ${evalUser.email} (ID: ${evalUser.id})`);
-
-  const RUNS_PER_SAMPLE = 10;
-  const recordsToInsert = [];
-  const evalDataByScope = {
-    DSA: { correctness: [], clarity: [], depth: [], score: [] },
-    "System Design": { correctness: [], clarity: [], depth: [], score: [] },
-    Behavioral: { correctness: [], clarity: [], depth: [], score: [] },
-    OVERALL: { correctness: [], clarity: [], depth: [], score: [] }
-  };
-
-  const topics = ["DSA", "System Design", "Behavioral"];
-
-  for (const topic of topics) {
-    const items = evalDataset.filter((d) => d.topic === topic);
-    console.log(`\n----------------------------------------------------------`);
-    console.log(` TOPIC: ${topic} (${items.length} samples x ${RUNS_PER_SAMPLE} runs = ${items.length * RUNS_PER_SAMPLE} EvalRuns)`);
-    console.log(`----------------------------------------------------------`);
-
-    for (const item of items) {
-      const evalResult = evaluateRubric(item);
-      const pass = evalResult.score >= item.expectedScoreRange[0] - 0.5 && evalResult.score <= item.expectedScoreRange[1] + 0.5;
-
-      for (let runIdx = 1; runIdx <= RUNS_PER_SAMPLE; runIdx++) {
-        // Collect metrics into statistical tracking
-        evalDataByScope[topic].correctness.push(evalResult.correctness);
-        evalDataByScope[topic].clarity.push(evalResult.clarity);
-        evalDataByScope[topic].depth.push(evalResult.depth);
-        evalDataByScope[topic].score.push(evalResult.score);
-
-        evalDataByScope.OVERALL.correctness.push(evalResult.correctness);
-        evalDataByScope.OVERALL.clarity.push(evalResult.clarity);
-        evalDataByScope.OVERALL.depth.push(evalResult.depth);
-        evalDataByScope.OVERALL.score.push(evalResult.score);
-
-        recordsToInsert.push({
-          userId: evalUser.id,
-          provider: UsageProvider.GEMINI,
-          model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
-          status: pass ? EvalStatus.PASSED : EvalStatus.FAILED,
-          score: evalResult.score,
-          feedback: {
-            sampleId: item.id,
-            topic: item.topic,
-            runIndex: runIdx,
-            totalRunsPerSample: RUNS_PER_SAMPLE,
-            expectedQuality: item.expectedQuality,
-            correctness: evalResult.correctness,
-            clarity: evalResult.clarity,
-            depth: evalResult.depth,
-            question: item.question,
-            answer: item.answer
-          },
-          startedAt: new Date(),
-          completedAt: new Date()
-        });
+  for (const version of ["v1", "v2"]) {
+    for (const item of evalDataset) {
+      for (let runIndex = 1; runIndex <= runsPerSample; runIndex += 1) {
+        const startedAt = new Date();
+        try {
+          const result = await evaluateAnswer({ question: item.question, answer: item.answer, promptVersion: version });
+          const score = scoreFor(result.scores);
+          const pass = score >= item.expectedScoreRange[0] - 0.5 && score <= item.expectedScoreRange[1] + 0.5;
+          const samples = byVersion.get(version);
+          const metrics = samples.get(item.id) ?? { correctness: [], clarity: [], depth: [], score: [] };
+          for (const axis of ["correctness", "clarity", "depth"]) metrics[axis].push(result.scores[axis]);
+          metrics.score.push(score);
+          samples.set(item.id, metrics);
+          if (persist) await prisma.evalRun.create({ data: {
+            userId: benchmarkUser.id, provider: providerToUsageProvider(result.provider), model: result.model,
+            status: pass ? EvalStatus.PASSED : EvalStatus.FAILED, score,
+            feedback: { benchmark: true, promptVersion: version, sampleId: item.id, topic: item.topic, runIndex, expectedScoreRange: item.expectedScoreRange, question: item.question, answer: item.answer, scores: result.scores },
+            startedAt, completedAt: new Date()
+          } });
+          console.log(`[${version}] ${item.id} run ${runIndex}: ${score.toFixed(2)}/5`);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Unknown error";
+          failures.push({ version, sampleId: item.id, runIndex, message });
+          console.error(`[${version}] ${item.id} run ${runIndex}: ERROR ${message}`);
+        }
       }
-
-      console.log(
-        ` [${item.id}] ${item.expectedQuality.padEnd(28)} | Generated ${RUNS_PER_SAMPLE} EvalRun records (Score: ${evalResult.score.toFixed(1)}/5.0)`
-      );
     }
   }
 
-  console.log("\n[Database] Batch inserting 300 EvalRun records into Database...");
-  const batchResult = await prisma.evalRun.createMany({
-    data: recordsToInsert
-  });
-
-  console.log("\n====================================================================================================");
-  console.log("  RUBRIC AXIS STATISTICAL SUMMARY TABLE (MEAN & VARIANCE PER SCOPE)");
-  console.log("====================================================================================================");
-  console.log(
-    `${"Scope / Domain".padEnd(16)} | ${"Rubric Axis".padEnd(14)} | ${"Count".padEnd(6)} | ${"Mean (μ)".padEnd(9)} | ${"Variance (σ²)".padEnd(13)} | ${"Std Dev (σ)".padEnd(11)} | Range`
-  );
-  console.log("-".repeat(100));
-
-  const scopes = ["DSA", "System Design", "Behavioral", "OVERALL"];
-  const axes = [
-    { key: "correctness", label: "Correctness" },
-    { key: "clarity", label: "Clarity" },
-    { key: "depth", label: "Depth" },
-    { key: "score", label: "Overall Score" }
-  ];
-
-  for (const scope of scopes) {
-    for (const axis of axes) {
-      const stats = calculateStats(evalDataByScope[scope][axis.key]);
-      console.log(
-        `${scope.padEnd(16)} | ${axis.label.padEnd(14)} | ${String(stats.count).padEnd(6)} | ${stats.mean.padEnd(9)} | ${stats.variance.padEnd(13)} | ${stats.stdDev.padEnd(11)} | [${stats.min} - ${stats.max}]`
-      );
-    }
-    console.log("-".repeat(100));
+  console.log("\nRun-to-run score variance (same sample repeated; not cross-sample spread):");
+  console.log("Version | Axis          | Count | Mean  | Variance | Std dev");
+  for (const [version, samples] of byVersion) for (const axis of ["correctness", "clarity", "depth", "score"]) {
+    const perSample = [...samples.values()].map((sample) => calculateStats(sample[axis]));
+    const allValues = [...samples.values()].flatMap((sample) => sample[axis]);
+    const averageVariance = perSample.reduce((total, stats) => total + Number(stats.variance), 0) / (perSample.length || 1);
+    const stats = calculateStats(allValues);
+    console.log(`${version.padEnd(7)} | ${axis.padEnd(13)} | ${String(stats.count).padEnd(5)} | ${stats.mean.padEnd(5)} | ${averageVariance.toFixed(4).padEnd(8)} | ${Math.sqrt(averageVariance).toFixed(4)}`);
   }
-
-  console.log("\n==========================================================");
-  console.log(" EVALUATION SUMMARY & DATABASE METRICS");
-  console.log("==========================================================");
-  
-  const totalEvalRunsInDb = await prisma.evalRun.count();
-  console.log(`- Batch Inserted Runs Count           : ${batchResult.count}`);
-  console.log(`- Total EvalRun Records In Database   : ${totalEvalRunsInDb}`);
-
-  console.log("\n==========================================================");
-  console.log(" SUCCESS: Computed mean and variance per rubric axis across 300 runs");
-  console.log("          and printed statistical summary table!");
-  console.log("==========================================================\n");
+  if (runsPerSample === 1) console.log("Note: --runs=1 cannot measure run-to-run variance. Re-run with --runs=10 for that claim.");
+  if (failures.length) console.log(`Completed with ${failures.length} failed LLM calls; failures were not converted into scores.`);
 }
 
 runEvalHarness()
