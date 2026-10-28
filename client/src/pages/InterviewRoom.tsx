@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiRequest, getAccessToken } from "../api/client";
 import { ScoreCard, type EvaluationScores } from "../components/ScoreCard";
@@ -37,6 +37,17 @@ export const InterviewRoom: React.FC = () => {
   const [openingAttempt, setOpeningAttempt] = useState(0);
   const [endingSession, setEndingSession] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const baseAnswerRef = useRef("");
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort?.();
+        recognitionRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -85,20 +96,63 @@ export const InterviewRoom: React.FC = () => {
   const dictateAnswer = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) { setError("Voice input is not supported by this browser. Try Chrome or Edge."); return; }
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false; recognition.interimResults = true; recognition.lang = "en-IN";
-    recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => setIsListening(false);
-    recognition.onerror = () => { setIsListening(false); setError("Voice input could not be started. Please try again."); };
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = Array.from(event.results).map((result) => result[0].transcript).join("");
-      setAnswer((current) => `${current}${current && !current.endsWith(" ") ? " " : ""}${transcript}`);
-    };
-    recognition.start();
+    
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop?.();
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-IN";
+      baseAnswerRef.current = answer;
+
+      recognition.onstart = () => setIsListening(true);
+      recognition.onend = () => {
+        setIsListening(false);
+        recognitionRef.current = null;
+      };
+      recognition.onerror = (e: Event) => {
+        setIsListening(false);
+        recognitionRef.current = null;
+        const err = e as { error?: string };
+        if (err.error !== "no-speech" && err.error !== "aborted") {
+          setError("Voice input could not be started. Please try again.");
+        }
+      };
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        let finalTranscripts = "";
+        let interimTranscripts = "";
+        for (let i = 0; i < event.results.length; i++) {
+          const res = event.results[i];
+          if (res.isFinal) {
+            finalTranscripts += res[0].transcript;
+          } else {
+            interimTranscripts += res[0].transcript;
+          }
+        }
+        const speechText = (finalTranscripts + (interimTranscripts ? (finalTranscripts ? " " : "") + interimTranscripts : "")).trim();
+        const base = baseAnswerRef.current.trim();
+        if (speechText) {
+          setAnswer(base ? `${base} ${speechText}` : speechText);
+        }
+      };
+      recognition.start();
+    } catch {
+      setIsListening(false);
+      recognitionRef.current = null;
+      setError("Failed to initialize voice recognition. Please try again.");
+    }
   };
 
   const submitAnswer = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop?.();
+    }
     if (!answer.trim() || !id || isStreaming || !latestQuestion) return;
     const answerToSubmit = answer.trim(); const questionToReview = latestQuestion;
     setError(null); setAnswer(""); setIsStreaming(true);
@@ -132,8 +186,8 @@ export const InterviewRoom: React.FC = () => {
   if (review) {
     const total = review.evaluation ? review.evaluation.correctness + review.evaluation.clarity + review.evaluation.depth : 0;
     const needsBetterAnswer = total < 12;
-    return <div className="room-page">{header}<main className="review-layout"><section className="answer-review"><p className="section-kicker">Answer review</p><h1>{needsBetterAnswer ? "Here’s how to strengthen your answer" : "Your answer is on the right track"}</h1><div className="review-question"><span>Question</span><AiResponseText content={review.question} /></div>{review.evaluation ? <><AiResponseText className="review-feedback" content={review.evaluation.feedback || "Review the score breakdown, then continue when you are ready."} />{needsBetterAnswer && <article className="better-answer"><p className="section-kicker">A stronger answer</p><AiResponseText content={review.evaluation.betterAnswer || "A model answer is unavailable for this response."} /></article>}</> : <p className="review-feedback">Your response was saved, but its automated evaluation was unavailable this time.</p>}<button className="primary-action next-question-button" type="button" onClick={() => setReview(null)}>Next Question</button></section>{review.evaluation ? <ScoreCard scores={review.evaluation} /> : <aside className="room-tip"><p className="section-kicker">Next step</p><h3>Keep building momentum</h3><p>Continue to the next question when you’re ready.</p></aside>}</main></div>;
+    return <div className="room-page">{header}<main className="review-layout"><section className="answer-review"><p className="section-kicker">Answer review</p><h1>{needsBetterAnswer ? "Here’s how to strengthen your answer" : "Your answer is on the right track"}</h1><div className="review-question"><span>Question</span><AiResponseText content={review.question} /></div>{review.evaluation ? <><AiResponseText className="review-feedback" content={review.evaluation.feedback || "Review the score breakdown, then continue when you are ready."} />{needsBetterAnswer && <article className="better-answer"><p className="section-kicker">A stronger answer</p><AiResponseText content={review.evaluation.betterAnswer || "A model answer is unavailable for this response."} /></article>}</> : <p className="review-feedback">Your response was saved, but its automated evaluation was unavailable this time.</p>}<button className="primary-action next-question-button" type="button" onClick={() => setReview(null)}>Next Question</button></section>{review.evaluation && <ScoreCard scores={review.evaluation} />}</main></div>;
   }
 
-  return <div className="room-page">{header}<main className="room-layout"><section className="interview-panel"><div className="question-box"><p className="section-kicker">Interviewer question</p>{streamingQuestion || latestQuestion ? <h1>{streamingQuestion || latestQuestion}</h1> : <h1 className="question-placeholder">{startingQuestion ? "Connecting to your interviewer…" : "Your interviewer has not generated a question yet."}</h1>}{startingQuestion && <span className="streaming-indicator">Generating your opening question…</span>}{error && !latestQuestion && <button className="retry-question-button" type="button" onClick={retryOpeningQuestion}>Try again</button>}</div><form className="answer-composer" onSubmit={submitAnswer}><label htmlFor="answer">Your answer</label><textarea id="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Think aloud, explain your reasoning, and mention any trade-offs…" disabled={isStreaming || startingQuestion || !latestQuestion} required /><div className="answer-actions"><span>{answer.trim().split(/\s+/).filter(Boolean).length} words</span><div className="answer-buttons"><button className="voice-action" type="button" onClick={dictateAnswer} disabled={isStreaming || startingQuestion || !latestQuestion}>{isListening ? "Listening…" : "Use voice"}</button><button className="primary-action" disabled={isStreaming || startingQuestion || !latestQuestion || !answer.trim()}>{isStreaming ? "Reviewing answer…" : "Submit answer"}</button></div></div></form>{error && <p className="room-error">{error}</p>}</section><aside className="room-tip"><p className="section-kicker">Interview tip</p><h3>Make your thinking visible</h3><p>Lead with your approach, then explain trade-offs and edge cases. This gives the interviewer a clearer signal.</p></aside></main></div>;
+  return <div className="room-page">{header}<main className="room-layout"><section className="interview-panel"><div className="question-box"><p className="section-kicker">Interviewer question</p>{streamingQuestion || latestQuestion ? <h1>{streamingQuestion || latestQuestion}</h1> : <h1 className="question-placeholder">{startingQuestion ? "Connecting to your interviewer…" : "Your interviewer has not generated a question yet."}</h1>}{startingQuestion && <span className="streaming-indicator">Generating your opening question…</span>}{error && !latestQuestion && <button className="retry-question-button" type="button" onClick={retryOpeningQuestion}>Try again</button>}</div><form className="answer-composer" onSubmit={submitAnswer}><label htmlFor="answer">Your answer</label><textarea id="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Think aloud, explain your reasoning, and mention any trade-offs…" disabled={isStreaming || startingQuestion || !latestQuestion} required /><div className="answer-actions"><span>{answer.trim().split(/\s+/).filter(Boolean).length} words</span><div className="answer-buttons"><button className={`voice-action ${isListening ? "voice-listening" : ""}`} type="button" onClick={dictateAnswer} disabled={isStreaming || startingQuestion || !latestQuestion}>{isListening ? "Stop listening" : "Use voice"}</button><button className="primary-action" disabled={isStreaming || startingQuestion || !latestQuestion || !answer.trim()}>{isStreaming ? "Reviewing answer…" : "Submit answer"}</button></div></div></form>{error && <p className="room-error">{error}</p>}</section></main></div>;
 };
