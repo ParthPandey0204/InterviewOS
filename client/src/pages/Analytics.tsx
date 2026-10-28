@@ -39,7 +39,44 @@ export const Analytics: React.FC = () => {
         : loading ? <p className="session-state">Loading your analytics...</p>
           : !data || (!data.topicAverages.length && !data.sessionsOverTime.length) ? <p className="session-state">Not enough scored answers to display analytics. Complete an interview question and review its score first.</p>
             : <>
-              <section className="insights-container semantic-insights"><p className="section-kicker">Semantic weak topics</p><h2>Conceptual gaps</h2>{data.clusterInsights.length ? <ul>{data.clusterInsights.map((insight) => <li key={insight.clusterLabel}>You consistently score low on questions semantically close to <strong>“{insight.clusterLabel}”</strong>, even when phrased differently across {insight.sessionCount} {insight.sessionCount === 1 ? "session" : "sessions"}.</li>)}</ul> : <p className="session-state">No repeated conceptual weak spot yet. Your topic performance below is grouped by the concepts in each question—not by interview mode.</p>}</section>
+              <section className="insights-container semantic-insights">
+                <div className="semantic-insights-header">
+                  <div>
+                    <p className="section-kicker">Semantic weak topics</p>
+                    <h2>Conceptual Knowledge Gaps</h2>
+                  </div>
+                  <span className="semantic-badge">Embedding Clustering</span>
+                </div>
+                <p className="semantic-description">
+                  Our transformer model analyzes semantic vector proximity between interview questions you struggled with (&lt;60%), grouping underlying conceptual misunderstandings even when asked across completely different modes or companies.
+                </p>
+                {data.clusterInsights.length ? (
+                  <div className="cluster-grid">
+                    {data.clusterInsights.map((insight) => (
+                      <div key={insight.clusterLabel} className="cluster-card">
+                        <div className="cluster-card-top">
+                          <span className="cluster-pill">{insight.clusterLabel}</span>
+                          <span className="cluster-score">
+                            Avg: {Math.round(insight.averageScore * 20)}%
+                          </span>
+                        </div>
+                        <p className="cluster-card-body">
+                          Identified across <strong>{insight.questionCount} {insight.questionCount === 1 ? "question" : "questions"}</strong> in <strong>{insight.sessionCount} {insight.sessionCount === 1 ? "session" : "sessions"}</strong>.
+                        </p>
+                        <div className="cluster-card-footer">
+                          <span>Targeted for spaced review in upcoming sessions</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="semantic-empty">
+                    <p className="session-state">
+                      No repeated conceptual weak spot detected yet (requires at least 2 connected low-scoring questions). Your topic breakdown below is categorized by the concepts in each evaluated answer.
+                    </p>
+                  </div>
+                )}
+              </section>
               <div className="analytics-grid"><section className="analytics-card"><div><p className="section-kicker">Weak areas</p><h2>Topic-wise Performance</h2></div><div className="chart-container"><ResponsiveContainer width="100%" height="100%"><RadarChart cx="50%" cy="50%" outerRadius="70%" data={data.topicAverages}><PolarGrid stroke="#e5eee5" /><PolarAngleAxis dataKey="topic" tick={{ fill: "#506451", fontSize: 12 }} /><PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: "#91b795" }} /><Radar name="Average Score" dataKey="averageScore" stroke="#3a6e3a" fill="#b8d8bc" fillOpacity={0.6} /><RechartsTooltip /></RadarChart></ResponsiveContainer></div></section><section className="analytics-card"><div><p className="section-kicker">Progress</p><h2>Sessions Over Time</h2></div><div className="chart-container"><ResponsiveContainer width="100%" height="100%"><LineChart data={data.sessionsOverTime} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e5eee5" /><XAxis dataKey="date" stroke="#91b795" tick={{ fill: "#506451", fontSize: 12 }} /><YAxis domain={[0, 100]} stroke="#91b795" tick={{ fill: "#506451", fontSize: 12 }} /><RechartsTooltip contentStyle={{ borderRadius: 8, border: "1px solid #e1ebe2", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }} /><Line type="monotone" dataKey="score" stroke="#3a6e3a" strokeWidth={3} dot={{ r: 4, fill: "#3a6e3a" }} activeDot={{ r: 6 }} /></LineChart></ResponsiveContainer></div></section></div>
               {data.usage.providers.length > 0 && <section className="analytics-card usage-dashboard"><p className="section-kicker">Internal operations</p><h2>AI cost & latency</h2><p className="usage-note">Estimated list-price cost from UsageLog. Latencies are measured server-side.</p><div className="usage-table"><div className="usage-row usage-labels"><span>Provider</span><span>Tokens</span><span>Est. cost</span><span>P50 / P95</span></div>{data.usage.providers.map((provider) => <div className="usage-row" key={provider.provider}><strong>{provider.provider}</strong><span>{provider.totalTokens.toLocaleString()}</span><span>${provider.estimatedCostUsd.toFixed(4)}</span><span>{Math.round(provider.p50LatencyMs)} / {Math.round(provider.p95LatencyMs)} ms</span></div>)}</div></section>}
             </>}

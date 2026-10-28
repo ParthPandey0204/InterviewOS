@@ -369,6 +369,10 @@ export const getAnalytics = async (userId: string) => {
     };
   });
 
+  await refreshUserClusterInsights(userId).catch(() => {
+    // Non-blocking fallback if embeddings service or clustering encounters transient issue
+  });
+
   const clusterInsights = await prisma.userClusterInsight.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
@@ -492,6 +496,20 @@ export const createTurn = async (
     throw new HttpError(502, "LLM returned an empty next question");
   }
 
+  if (evaluationResult?.scores) {
+    await recordEvaluationHistory({
+      userId,
+      sessionId,
+      question: previousQuestion,
+      mode: session.mode,
+      difficulty: session.difficulty,
+      provider: evaluationResult.provider,
+      model: evaluationResult.model,
+      scores: evaluationResult.scores
+    });
+    await refreshUserClusterInsights(userId);
+  }
+
   const [userTurn, assistantTurn] = await persistTurnPair({
     userId,
     mode: session.mode,
@@ -504,6 +522,8 @@ export const createTurn = async (
     usage: llmResult.usage,
     evaluation: evaluationResult?.scores
   });
+
+  await indexQuestion({ userId, prompt: nextQuestion, mode: session.mode, difficulty: session.difficulty });
 
   return {
     turn: userTurn,

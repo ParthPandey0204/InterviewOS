@@ -506,8 +506,21 @@ body {
 .analytics-card { background: var(--color-surface); border: 1px solid rgba(218, 230, 220, .8); border-radius: 20px; box-shadow: 0 10px 40px rgba(0, 0, 0, .02); box-sizing: border-box; padding: 30px; }
 .analytics-card h2, .semantic-insights h2 { color: var(--color-text-main); font-family: 'Playfair Display', Georgia, serif; font-size: 1.5rem; margin: 0; }
 .analytics-card .chart-container { height: 350px; margin-top: 20px; }
-.semantic-insights { background: #fffaf0; border: 1px solid #f1dfbb; border-left: 4px solid #d79531; border-radius: 12px; box-sizing: border-box; margin: 0 0 24px; padding: 22px 24px; }
-.semantic-insights .section-kicker { color: #9a6417; margin: 0 0 7px; }.semantic-insights h2 { color: #694714; }.semantic-insights ul { list-style: none; margin: 15px 0 0; padding: 0; }.semantic-insights li { color: #604d32; line-height: 1.6; }.semantic-insights .session-state { color: #755f41; margin: 12px 0 0; }
+.semantic-insights { background: #fffdfa; border: 1px solid #ebd9b5; border-left: 5px solid #d78b20; border-radius: 16px; box-sizing: border-box; margin: 0 0 28px; padding: 28px 32px; box-shadow: 0 10px 30px rgba(180, 130, 40, 0.04); }
+.semantic-insights-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 10px; }
+.semantic-insights .section-kicker { color: #9a6417; margin: 0 0 6px; font-weight: 700; }
+.semantic-insights h2 { color: #52370f; font-family: 'Playfair Display', Georgia, serif; font-size: 1.6rem; margin: 0; }
+.semantic-badge { background: #fdf3e2; border: 1px solid #e7cd9d; color: #8e5812; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 12px; border-radius: 99px; }
+.semantic-description { color: #6e583c; font-size: 0.95rem; line-height: 1.6; margin: 0 0 20px; max-width: 820px; }
+.cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }
+.cluster-card { background: #ffffff; border: 1px solid #f0e2ca; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02); }
+.cluster-card-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.cluster-pill { background: #faede0; color: #9c5011; font-weight: 700; font-size: 0.88rem; padding: 4px 10px; border-radius: 6px; border: 1px solid #ecd3be; text-transform: capitalize; }
+.cluster-score { color: #b91c1c; font-weight: 700; font-size: 0.85rem; }
+.cluster-card-body { color: #574632; font-size: 0.88rem; line-height: 1.5; margin: 0; }
+.cluster-card-footer { border-top: 1px solid #f6eee2; padding-top: 8px; margin-top: auto; font-size: 0.78rem; color: #8b7458; }
+.semantic-empty { background: rgba(255, 255, 255, 0.6); border: 1px dashed #e5d1b0; border-radius: 10px; padding: 16px 20px; margin-top: 8px; }
+.semantic-empty .session-state { color: #755f41; margin: 0; }
 
 /* Analytics */
 .analytics-page { padding-bottom: 64px; }
@@ -737,6 +750,4 @@ body {
 .analytics-grid .analytics-card, .usage-dashboard { background: var(--color-surface); border: 1px solid rgba(218, 230, 220, .8); border-radius: 20px; box-shadow: 0 10px 40px rgba(0, 0, 0, .02); padding: 30px; }
 .analytics-grid .analytics-card h2, .usage-dashboard h2 { color: var(--color-text-main); font-family: 'Playfair Display', Georgia, serif; font-size: 1.5rem; margin: 0; }
 .analytics-grid .analytics-card .chart-container { height: 350px; margin-top: 20px; }
-.semantic-insights { background: #fffaf0; border: 1px solid #f1dfbb; border-left: 4px solid #d79531; border-radius: 12px; box-sizing: border-box; margin: 0 0 24px; padding: 22px 24px; }
-.semantic-insights .section-kicker { color: #9a6417; margin: 0 0 7px; }.semantic-insights h2 { color: #694714; font-family: 'Playfair Display', Georgia, serif; font-size: 1.5rem; margin: 0; }.semantic-insights ul { list-style: none; margin: 15px 0 0; padding: 0; }.semantic-insights li { color: #604d32; line-height: 1.6; }.semantic-insights .session-state { color: #755f41; margin: 12px 0 0; }
 @media (max-width: 768px) { .analytics-grid { grid-template-columns: 1fr; }.analytics-grid .analytics-card, .usage-dashboard { padding: 24px 22px; } }
