@@ -94,57 +94,80 @@ export const InterviewRoom: React.FC = () => {
     catch (endError) { setError(endError instanceof Error ? endError.message : "Unable to end this session."); setEndingSession(false); }
   };
   const dictateAnswer = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) { setError("Voice input is not supported by this browser. Try Chrome or Edge."); return; }
-    
-    if (isListening && recognitionRef.current) {
-      recognitionRef.current.stop?.();
+    const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionClass) {
+      setError("Voice input is not supported by this browser. Try Google Chrome or Microsoft Edge.");
+      return;
+    }
+
+    if (isListening) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop?.(); } catch { /* ignore */ }
+      }
+      setIsListening(false);
       return;
     }
 
     try {
-      const recognition = new SpeechRecognition();
+      const recognition = new SpeechRecognitionClass();
       recognitionRef.current = recognition;
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = "en-IN";
+      // Do not hardcode en-IN exclusively; fallback to browser navigator.language or en-US if available
+      recognition.lang = navigator.language || "en-US";
       baseAnswerRef.current = answer;
 
-      recognition.onstart = () => setIsListening(true);
+      recognition.onstart = () => {
+        setIsListening(true);
+        setError(null);
+      };
+
       recognition.onend = () => {
         setIsListening(false);
         recognitionRef.current = null;
       };
+
       recognition.onerror = (e: Event) => {
+        const speechError = (e as { error?: string }).error;
+        if (speechError === "no-speech") {
+          // Normal when user pauses speaking briefly; don't terminate or alarm
+          return;
+        }
         setIsListening(false);
         recognitionRef.current = null;
-        const err = e as { error?: string };
-        if (err.error !== "no-speech" && err.error !== "aborted") {
-          setError("Voice input could not be started. Please try again.");
+        if (speechError === "not-allowed" || speechError === "service-not-allowed") {
+          setError("Microphone permission was denied. Please allow microphone access in your browser settings.");
+        } else if (speechError && speechError !== "aborted") {
+          setError(`Voice input issue: ${speechError}. Please try again.`);
         }
       };
+
       recognition.onresult = (event: SpeechRecognitionEvent) => {
         let finalTranscripts = "";
         let interimTranscripts = "";
+
         for (let i = 0; i < event.results.length; i++) {
-          const res = event.results[i];
-          if (res.isFinal) {
-            finalTranscripts += res[0].transcript;
+          const item = event.results[i];
+          const transcriptText = item?.[0]?.transcript ?? "";
+          if (item?.isFinal) {
+            finalTranscripts += (finalTranscripts ? " " : "") + transcriptText.trim();
           } else {
-            interimTranscripts += res[0].transcript;
+            interimTranscripts += (interimTranscripts ? " " : "") + transcriptText.trim();
           }
         }
-        const speechText = (finalTranscripts + (interimTranscripts ? (finalTranscripts ? " " : "") + interimTranscripts : "")).trim();
+
+        const combinedSpoken = [finalTranscripts.trim(), interimTranscripts.trim()].filter(Boolean).join(" ");
         const base = baseAnswerRef.current.trim();
-        if (speechText) {
-          setAnswer(base ? `${base} ${speechText}` : speechText);
+        if (combinedSpoken) {
+          setAnswer(base ? `${base} ${combinedSpoken}` : combinedSpoken);
         }
       };
+
       recognition.start();
-    } catch {
+    } catch (err) {
       setIsListening(false);
       recognitionRef.current = null;
-      setError("Failed to initialize voice recognition. Please try again.");
+      setError(err instanceof Error ? err.message : "Failed to start microphone.");
     }
   };
 
