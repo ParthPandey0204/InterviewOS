@@ -594,10 +594,65 @@ export const startSessionStream = async (userId: string, sessionId: string) => {
 };
 
 export const completeSession = async (userId: string, sessionId: string) => {
-  const session = await prisma.session.findFirst({ where: { id: sessionId, userId }, select: { id: true, status: true } });
+  const session = await prisma.session.findFirst({
+    where: { id: sessionId, userId },
+    select: {
+      id: true,
+      status: true,
+      mode: true,
+      turns: {
+        where: { role: TurnRole.USER },
+        select: { metadata: true }
+      }
+    }
+  });
   if (!session) throw new HttpError(404, "Session not found");
   if (session.status !== SessionStatus.ACTIVE) throw new HttpError(409, "Session is already complete");
-  return prisma.session.update({ where: { id: sessionId }, data: { status: SessionStatus.COMPLETED, endedAt: new Date() }, select: sessionSelect });
+
+  const completed = await prisma.session.update({
+    where: { id: sessionId },
+    data: { status: SessionStatus.COMPLETED, endedAt: new Date() },
+    select: sessionSelect
+  });
+
+  // Calculate session score from evaluated turns if TopicStats wasn't created yet
+  const userScores: number[] = [];
+  for (const turn of session.turns) {
+    if (turn.metadata && typeof turn.metadata === "object" && "evaluation" in turn.metadata) {
+      const evaluation = (turn.metadata as { evaluation?: Record<string, unknown> }).evaluation;
+      if (evaluation && typeof evaluation === "object") {
+        const { correctness, clarity, depth } = evaluation;
+        if (typeof correctness === "number" && typeof clarity === "number" && typeof depth === "number") {
+          userScores.push((correctness + clarity + depth) / 3);
+        }
+      }
+    }
+  }
+
+  if (userScores.length > 0) {
+    const avgScore = userScores.reduce((a, b) => a + b, 0) / userScores.length;
+    await prisma.topicStats.upsert({
+      where: { sessionId_topic: { sessionId, topic: session.mode } },
+      create: {
+        sessionId,
+        topic: session.mode,
+        attempts: userScores.length,
+        correct: avgScore >= 3 ? 1 : 0,
+        score: avgScore,
+        lastSeenAt: new Date()
+      },
+      update: {
+        attempts: userScores.length,
+        score: avgScore,
+        lastSeenAt: new Date()
+      }
+    }).catch(() => { /* non-blocking */ });
+  }
+
+  // Refresh user cluster insights on completion so analytics is immediately updated
+  await refreshUserClusterInsights(userId).catch(() => { /* non-blocking */ });
+
+  return completed;
 };
 
 export const createTurnStream = async (

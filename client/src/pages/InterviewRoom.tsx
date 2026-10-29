@@ -74,13 +74,16 @@ export const InterviewRoom: React.FC = () => {
           if (!line) return;
           const payload = JSON.parse(line.slice(5).trim());
           if (name === "delta") setStreamingQuestion((current) => current + payload.content);
-          if (name === "done") setSession((current) => current ? { ...current, turns: [payload.turn] } : current);
+          if (name === "done") {
+            setStreamingQuestion("");
+            setSession((current) => current ? { ...current, turns: [payload.turn] } : current);
+          }
           if (name === "error") throw new Error(payload.message || "Unable to start the interview.");
         };
         while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const { complete, remainder } = parseEvents(buffer); buffer = remainder; complete.forEach(consume); }
         if (buffer.trim()) consume(buffer);
       } catch (startError) { setError(startError instanceof Error ? startError.message : "Unable to start the interview."); }
-      finally { setStartingQuestion(false); }
+      finally { setStartingQuestion(false); setStreamingQuestion(""); }
     };
     void startInterview();
   }, [id, session, startingQuestion, error, openingAttempt]);
@@ -178,7 +181,7 @@ export const InterviewRoom: React.FC = () => {
     }
     if (!answer.trim() || !id || isStreaming || !latestQuestion) return;
     const answerToSubmit = answer.trim(); const questionToReview = latestQuestion;
-    setError(null); setAnswer(""); setIsStreaming(true);
+    setError(null); setAnswer(""); setIsStreaming(true); setStreamingQuestion("");
     try {
       const response = await streamRequest(`/api/sessions/${id}/turns/stream`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${getAccessToken()}` }, credentials: "include", body: JSON.stringify({ answer: answerToSubmit }) });
       if (!response.ok || !response.body) { const data = await response.json().catch(() => ({})); throw new Error(data.error?.message || "Unable to submit answer"); }
@@ -190,6 +193,7 @@ export const InterviewRoom: React.FC = () => {
         const payload = JSON.parse(line.slice(5).trim());
         if (name === "done") {
           completed = true;
+          setStreamingQuestion("");
           setSession((current) => current ? { ...current, turns: [...current.turns, payload.turn, payload.nextQuestion] } : current);
           setReview({ question: questionToReview, answer: answerToSubmit, evaluation: payload.turn.metadata?.evaluation ?? null });
         }
@@ -199,7 +203,7 @@ export const InterviewRoom: React.FC = () => {
       if (buffer.trim()) handleEvent(buffer);
       if (!completed) throw new Error("The interview response finished without a next question. Please try again.");
     } catch (submitError) { setError(submitError instanceof Error ? submitError.message : "Unable to submit answer"); setAnswer(answerToSubmit); }
-    finally { setIsStreaming(false); }
+    finally { setIsStreaming(false); setStreamingQuestion(""); }
   };
 
   if (!session && !error) return <div className="room-page room-loading">Loading your interview room...</div>;
