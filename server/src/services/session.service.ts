@@ -369,6 +369,27 @@ export const getAnalytics = async (userId: string) => {
     };
   });
 
+  // Fallback: if no sessions were matched via scoresBySession (e.g. all evalRuns
+  // have sessionId: null from the eval-harness, or the user played before EvalRun
+  // was wired up), build the timeline from evalRun completedAt dates instead.
+  const sessionsOverTimeFinal = sessionsOverTime.length > 0 ? sessionsOverTime : (() => {
+    const byDate = new Map<string, number[]>();
+    for (const run of evalRuns) {
+      if (run.score === null || !run.completedAt) continue;
+      const date = run.completedAt.toISOString().split("T")[0];
+      const arr = byDate.get(date) ?? [];
+      arr.push(run.score);
+      byDate.set(date, arr);
+    }
+    return [...byDate.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, scores]) => ({
+        date,
+        score: Math.round((scores.reduce((t, s) => t + s, 0) / scores.length) * 20),
+        mode: "mixed"
+      }));
+  })();
+
   await refreshUserClusterInsights(userId).catch(() => {
     // Non-blocking fallback if embeddings service or clustering encounters transient issue
   });
@@ -409,7 +430,7 @@ export const getAnalytics = async (userId: string) => {
 
   return {
     topicAverages,
-    sessionsOverTime,
+    sessionsOverTime: sessionsOverTimeFinal,
     clusterInsights,
     overview: {
       evaluatedAnswers: evaluations.length,

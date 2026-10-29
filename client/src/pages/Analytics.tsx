@@ -8,7 +8,6 @@ type AnalyticsData = {
   topicAverages: Array<{ topic: string; averageScore: number; attempts: number }>;
   sessionsOverTime: Array<{ date: string; score: number; mode: string }>;
   clusterInsights: Array<{ clusterLabel: string; averageScore: number; questionCount: number; sessionCount: number }>;
-  usage: { providers: Array<{ provider: string; totalTokens: number; estimatedCostUsd: number; p50LatencyMs: number; p95LatencyMs: number }> };
 };
 
 const HomeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>;
@@ -77,9 +76,44 @@ export const Analytics: React.FC = () => {
                   </div>
                 )}
               </section>
-              <div className="analytics-grid"><section className="analytics-card"><div><p className="section-kicker">Weak areas</p><h2>Topic-wise Performance</h2></div><div className="chart-container"><ResponsiveContainer width="100%" height="100%"><RadarChart cx="50%" cy="50%" outerRadius="70%" data={data.topicAverages}><PolarGrid stroke="#e5eee5" /><PolarAngleAxis dataKey="topic" tick={{ fill: "#506451", fontSize: 12 }} /><PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: "#91b795" }} /><Radar name="Average Score" dataKey="averageScore" stroke="#3a6e3a" fill="#b8d8bc" fillOpacity={0.6} /><RechartsTooltip /></RadarChart></ResponsiveContainer></div></section><section className="analytics-card"><div><p className="section-kicker">Progress</p><h2>Sessions Over Time</h2></div><div className="chart-container"><ResponsiveContainer width="100%" height="100%"><LineChart data={data.sessionsOverTime} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e5eee5" /><XAxis dataKey="date" stroke="#91b795" tick={{ fill: "#506451", fontSize: 12 }} /><YAxis domain={[0, 100]} stroke="#91b795" tick={{ fill: "#506451", fontSize: 12 }} /><RechartsTooltip contentStyle={{ borderRadius: 8, border: "1px solid #e1ebe2", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }} /><Line type="monotone" dataKey="score" stroke="#3a6e3a" strokeWidth={3} dot={{ r: 4, fill: "#3a6e3a" }} activeDot={{ r: 6 }} /></LineChart></ResponsiveContainer></div></section></div>
-              {data.usage.providers.length > 0 && <section className="analytics-card usage-dashboard"><p className="section-kicker">Internal operations</p><h2>AI cost & latency</h2><p className="usage-note">Estimated list-price cost from UsageLog. Latencies are measured server-side.</p><div className="usage-table"><div className="usage-row usage-labels"><span>Provider</span><span>Tokens</span><span>Est. cost</span><span>P50 / P95</span></div>{data.usage.providers.map((provider) => <div className="usage-row" key={provider.provider}><strong>{provider.provider}</strong><span>{provider.totalTokens.toLocaleString()}</span><span>${provider.estimatedCostUsd.toFixed(4)}</span><span>{Math.round(provider.p50LatencyMs)} / {Math.round(provider.p95LatencyMs)} ms</span></div>)}</div></section>}
+              <div className="analytics-grid">
+                <section className="analytics-card">
+                  <div>
+                    <p className="section-kicker">Weak areas</p>
+                    <h2>Topic-wise Performance</h2>
+                  </div>
+                  <div className="chart-container">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data.topicAverages}>
+                        <PolarGrid stroke="#e5eee5" />
+                        <PolarAngleAxis dataKey="topic" tick={{ fill: "#506451", fontSize: 12 }} />
+                        <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: "#91b795" }} />
+                        <Radar name="Average Score" dataKey="averageScore" stroke="#3a6e3a" fill="#b8d8bc" fillOpacity={0.6} />
+                        <RechartsTooltip />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
+                <section className="analytics-card">
+                  <div>
+                    <p className="section-kicker">Progress</p>
+                    <h2>Sessions Over Time</h2>
+                  </div>
+                  <div className="chart-container">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={data.sessionsOverTime} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5eee5" />
+                        <XAxis dataKey="date" stroke="#91b795" tick={{ fill: "#506451", fontSize: 12 }} />
+                        <YAxis domain={[0, 100]} stroke="#91b795" tick={{ fill: "#506451", fontSize: 12 }} />
+                        <RechartsTooltip contentStyle={{ borderRadius: 8, border: "1px solid #e1ebe2", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }} />
+                        <Line type="monotone" dataKey="score" stroke="#3a6e3a" strokeWidth={3} dot={{ r: 4, fill: "#3a6e3a" }} activeDot={{ r: 6 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
+              </div>
             </>}
+
     </main></div>
   </div>;
 };

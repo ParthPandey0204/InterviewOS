@@ -47,8 +47,20 @@ const parseVector = (value: string): number[] | null => {
 };
 
 const labelStopWords = new Set([
+  "a", "an", "and", "at", "by", "or", "but", "in", "on", "to", "is", "its", "not",
   "about", "after", "answer", "approach", "between", "build", "can", "could", "design", "describe", "does", "explain", "for", "from", "have", "how", "into", "interview", "need", "question", "should", "that", "the", "their", "this", "use", "what", "when", "with", "would", "you", "your"
 ]);
+
+const toTitleCase = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
+
+// Strip trailing stop words (e.g. "Consistency And" → "Consistency")
+const trimTrailingStopWords = (label: string): string => {
+  const words = label.split(" ");
+  while (words.length > 1 && labelStopWords.has(words[words.length - 1]!.toLowerCase())) {
+    words.pop();
+  }
+  return words.join(" ");
+};
 
 // A label must not rely on a remote LLM: an unavailable API key should not
 // hide a locally detected conceptual gap.
@@ -64,9 +76,9 @@ const makeClusterLabel = (questions: QuestionEvidence[]) => {
     }
   }
   const bestPhrase = [...phraseCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
-  if (bestPhrase && bestPhrase[1] >= 2) return bestPhrase[0];
+  if (bestPhrase && bestPhrase[1] >= 2) return toTitleCase(trimTrailingStopWords(bestPhrase[0]));
   const words = [...wordCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 2).map(([word]) => word);
-  return words.length ? words.join(" ") : `${questions[0].topic} concepts`;
+  return words.length ? toTitleCase(trimTrailingStopWords(words.join(" "))) : toTitleCase(`${questions[0].topic} concepts`);
 };
 
 export const findConnectedClusters = (questions: QuestionEvidence[]) => {
