@@ -35,9 +35,9 @@ The evaluator has versioned baseline and calibrated prompts. Its benchmark harne
 
 ## Screenshots and demo
 
-Screenshots and a 90-second demo video are not yet recorded. Before publishing, deploy the app, then show a company-targeted session, a weak answer's review chart and improved answer, and Analytics with weak-topic clustering and UsageLog metrics.
+Screenshots and a 90-second demo video are not yet recorded. For the demo, show a company-targeted session, a weak answer's review chart and improved answer, and Analytics with weak-topic clustering and UsageLog metrics.
 
-**Live link:** not deployed yet.
+**Live app:** [https://interview-os-client.vercel.app/](https://interview-os-client.vercel.app/)
 
 ## Real-user study
 

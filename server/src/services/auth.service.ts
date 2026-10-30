@@ -8,6 +8,7 @@ import {
   signRefreshToken,
   verifyRefreshToken
 } from "./token.service.js";
+import { revokeRefreshTokenOnce } from "./refresh-token-rotation.js";
 
 const MIN_PASSWORD_LENGTH = 8;
 const PASSWORD_SALT_ROUNDS = 12;
@@ -155,10 +156,14 @@ export const refresh = async (refreshToken: unknown) => {
     throw new HttpError(401, "Invalid or expired refresh token");
   }
 
-  await prisma.refreshToken.update({
-    where: { id: storedToken.id },
-    data: { revokedAt: new Date() }
-  });
+  const now = new Date();
+  const didRotate = await revokeRefreshTokenOnce(async () => prisma.refreshToken.updateMany({
+    where: { id: storedToken.id, revokedAt: null, expiresAt: { gt: now } },
+    data: { revokedAt: now }
+  }));
+  if (!didRotate) {
+    throw new HttpError(401, "Invalid or expired refresh token");
+  }
 
   return {
     user: publicUser(storedToken.user),

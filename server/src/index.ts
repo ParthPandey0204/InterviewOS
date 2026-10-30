@@ -11,6 +11,8 @@ import { runClusteringJob } from "./services/clustering.service.js";
 
 const app = express();
 
+// Render terminates TLS at one trusted proxy; use the client IP for auth throttling.
+app.set("trust proxy", 1);
 app.use(helmet());
 app.use(requestLogger);
 app.use(corsMiddleware);
