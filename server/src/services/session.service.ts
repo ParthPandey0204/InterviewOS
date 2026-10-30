@@ -585,6 +585,7 @@ export const createTurnStream = async (
 
   return {
     provider,
+    evaluation: evaluationPromise,
     stream: stream(),
     commit: async (nextQuestionContent: string) => {
       const nextQuestion = nextQuestionContent.trim();

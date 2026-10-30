@@ -80,6 +80,11 @@ export const createTurnStream = asyncHandler(async (request: Request, response: 
   response.flushHeaders?.();
 
   writeSse(response, "ready", { provider: turnStream.provider });
+  const reviewEvent = turnStream.evaluation.then((evaluation) => {
+    if (!response.destroyed && !response.writableEnded) {
+      writeSse(response, "review", { evaluation: evaluation?.scores ?? null });
+    }
+  });
 
   try {
     for await (const chunk of turnStream.stream) {
@@ -88,6 +93,7 @@ export const createTurnStream = asyncHandler(async (request: Request, response: 
     }
 
     const result = await turnStream.commit(nextQuestion);
+    await reviewEvent;
     writeSse(response, "done", result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Streaming turn failed";
