@@ -93,7 +93,7 @@ export const InterviewRoom: React.FC = () => {
   const endSession = async () => {
     if (!id || endingSession) return;
     setEndingSession(true); setError(null);
-    try { await apiRequest(`/api/sessions/${id}/complete`, { method: "POST" }); navigate("/"); }
+    try { await apiRequest(`/api/sessions/${id}/complete`, { method: "POST" }); navigate(`/sessions/${id}/replay`); }
     catch (endError) { setError(endError instanceof Error ? endError.message : "Unable to end this session."); setEndingSession(false); }
   };
   const dictateAnswer = () => {
