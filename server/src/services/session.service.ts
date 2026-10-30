@@ -97,6 +97,45 @@ const turnSelect = {
   createdAt: true
 };
 
+const updateAnalyticsInBackground = async (input: {
+  userId: string;
+  sessionId: string;
+  mode: string;
+  difficulty: QuestionDifficulty;
+  previousQuestion: string;
+  nextQuestion: string;
+  evaluation: Awaited<ReturnType<typeof evaluateAnswer>> | null;
+}) => {
+  if (input.evaluation?.scores) {
+    try {
+      await recordEvaluationHistory({
+        userId: input.userId,
+        sessionId: input.sessionId,
+        question: input.previousQuestion,
+        mode: input.mode,
+        difficulty: input.difficulty,
+        provider: input.evaluation.provider,
+        model: input.evaluation.model,
+        scores: input.evaluation.scores
+      });
+      await refreshUserClusterInsights(input.userId);
+    } catch (error) {
+      console.error("Unable to update evaluation analytics", error);
+    }
+  }
+
+  try {
+    await indexQuestion({
+      userId: input.userId,
+      prompt: input.nextQuestion,
+      mode: input.mode,
+      difficulty: input.difficulty
+    });
+  } catch (error) {
+    console.error("Unable to index the next interview question", error);
+  }
+};
+
 const getActiveSessionForTurn = async (
   userId: string,
   sessionId: string
@@ -340,20 +379,6 @@ export const createTurn = async (
     throw new HttpError(502, "LLM returned an empty next question");
   }
 
-  if (evaluationResult?.scores) {
-    await recordEvaluationHistory({
-      userId,
-      sessionId,
-      question: previousQuestion,
-      mode: session.mode,
-      difficulty: session.difficulty,
-      provider: evaluationResult.provider,
-      model: evaluationResult.model,
-      scores: evaluationResult.scores
-    });
-    await refreshUserClusterInsights(userId);
-  }
-
   const [userTurn, assistantTurn] = await persistTurnPair({
     userId,
     mode: session.mode,
@@ -367,7 +392,15 @@ export const createTurn = async (
     evaluation: evaluationResult?.scores
   });
 
-  await indexQuestion({ userId, prompt: nextQuestion, mode: session.mode, difficulty: session.difficulty });
+  void updateAnalyticsInBackground({
+    userId,
+    sessionId,
+    mode: session.mode,
+    difficulty: session.difficulty,
+    previousQuestion,
+    nextQuestion,
+    evaluation: evaluationResult
+  });
 
   return {
     turn: userTurn,
@@ -562,20 +595,6 @@ export const createTurnStream = async (
 
       const evaluationResult = await evaluationPromise;
 
-      if (evaluationResult?.scores) {
-        await recordEvaluationHistory({
-          userId,
-          sessionId,
-          question: previousQuestion,
-          mode: session.mode,
-          difficulty: session.difficulty,
-          provider: evaluationResult.provider,
-          model: evaluationResult.model,
-          scores: evaluationResult.scores
-        });
-        await refreshUserClusterInsights(userId);
-      }
-
       const [userTurn, assistantTurn] = await persistTurnPair({
         userId,
         mode: session.mode,
@@ -588,7 +607,15 @@ export const createTurnStream = async (
         evaluation: evaluationResult?.scores
       });
 
-      await indexQuestion({ userId, prompt: nextQuestion, mode: session.mode, difficulty: session.difficulty });
+      void updateAnalyticsInBackground({
+        userId,
+        sessionId,
+        mode: session.mode,
+        difficulty: session.difficulty,
+        previousQuestion,
+        nextQuestion,
+        evaluation: evaluationResult
+      });
 
       return {
         turn: userTurn,
