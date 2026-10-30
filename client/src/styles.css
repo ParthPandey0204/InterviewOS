@@ -746,8 +746,22 @@ body {
 }
 
 /* Keep Analytics intentionally close to the original dashboard card layout. */
+.analytics-overview { display: grid; gap: 16px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 24px; }
+.analytics-overview-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; min-width: 0; padding: 20px; }
+.analytics-overview-card span { color: var(--color-text-muted); display: block; font-size: .76rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.analytics-overview-card strong { color: var(--color-text-main); display: block; font-family: 'Playfair Display', Georgia, serif; font-size: 1.8rem; margin-top: 9px; overflow-wrap: anywhere; }
+.analytics-overview-card .analytics-overview-topic { font-family: 'DM Sans', sans-serif; font-size: 1rem; line-height: 1.3; }
+.analytics-usage { margin-bottom: 24px; }
+.analytics-usage-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.analytics-provider { background: #f7faf7; border: 1px solid #e4eee5; border-radius: 13px; padding: 17px; }
+.analytics-provider h3 { color: var(--color-text-main); margin: 0 0 12px; text-transform: capitalize; }
+.analytics-provider dl { display: grid; gap: 9px; margin: 0; }
+.analytics-provider dl div { align-items: baseline; display: flex; gap: 12px; justify-content: space-between; }
+.analytics-provider dt { color: var(--color-text-muted); font-size: .8rem; }
+.analytics-provider dd { color: var(--color-text-main); font-size: .82rem; font-weight: 700; margin: 0; text-align: right; }
 .analytics-grid { display: grid; gap: 24px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 24px; }
 .analytics-grid .analytics-card, .usage-dashboard { background: var(--color-surface); border: 1px solid rgba(218, 230, 220, .8); border-radius: 20px; box-shadow: 0 10px 40px rgba(0, 0, 0, .02); padding: 30px; }
 .analytics-grid .analytics-card h2, .usage-dashboard h2 { color: var(--color-text-main); font-family: 'Playfair Display', Georgia, serif; font-size: 1.5rem; margin: 0; }
 .analytics-grid .analytics-card .chart-container { height: 350px; margin-top: 20px; }
-@media (max-width: 768px) { .analytics-grid { grid-template-columns: 1fr; }.analytics-grid .analytics-card, .usage-dashboard { padding: 24px 22px; } }
+@media (max-width: 768px) { .analytics-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }.analytics-grid { grid-template-columns: 1fr; }.analytics-grid .analytics-card, .usage-dashboard { padding: 24px 22px; } }
+@media (max-width: 420px) { .analytics-overview { grid-template-columns: 1fr; } }

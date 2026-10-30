@@ -8,6 +8,17 @@ type AnalyticsData = {
   topicAverages: Array<{ topic: string; averageScore: number; attempts: number }>;
   sessionsOverTime: Array<{ date: string; score: number; mode: string }>;
   clusterInsights: Array<{ clusterLabel: string; averageScore: number; questionCount: number; sessionCount: number }>;
+  overview: {
+    evaluatedAnswers: number;
+    completedSessions: number;
+    averageScore: number | null;
+    strongestTopic: string | null;
+    focusTopic: string | null;
+  };
+  usage: {
+    providers: Array<{ provider: string; promptTokens: number; completionTokens: number; totalTokens: number; estimatedCostUsd: number; p50LatencyMs: number; p95LatencyMs: number }>;
+    sessions: Array<{ sessionId: string; totalTokens: number; estimatedCostUsd: number }>;
+  };
 };
 
 const HomeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>;
@@ -36,8 +47,15 @@ export const Analytics: React.FC = () => {
       <div className="dashboard-eyebrow">Your insights</div><h1>Analytics & Progress</h1><p className="dashboard-lede">Track your performance over time and identify areas for improvement.</p>
       {error ? <div className="inline-state error-state"><span>{error}</span><button className="resume-button" onClick={() => void loadAnalytics()}>Try again</button></div>
         : loading ? <p className="session-state">Loading your analytics...</p>
-          : !data || (!data.topicAverages.length && !data.sessionsOverTime.length) ? <p className="session-state">Not enough scored answers to display analytics. Complete an interview question and review its score first.</p>
+          : !data ? <p className="session-state">Analytics are unavailable right now. Try again in a moment.</p>
             : <>
+              <section className="analytics-overview" aria-label="Performance overview">
+                <article className="analytics-overview-card"><span>Evaluated answers</span><strong>{data.overview.evaluatedAnswers}</strong></article>
+                <article className="analytics-overview-card"><span>Completed sessions</span><strong>{data.overview.completedSessions}</strong></article>
+                <article className="analytics-overview-card"><span>Average score</span><strong>{data.overview.averageScore === null ? "—" : `${data.overview.averageScore}%`}</strong></article>
+                <article className="analytics-overview-card"><span>Focus topic</span><strong className="analytics-overview-topic">{data.overview.focusTopic ?? "—"}</strong></article>
+              </section>
+              {!data.topicAverages.length && !data.sessionsOverTime.length ? <div className="session-state">Not enough scored answers to show trends yet. Complete an interview question and review its score first.</div> : null}
               <section className="insights-container semantic-insights">
                 <div className="semantic-insights-header">
                   <div>
@@ -82,7 +100,7 @@ export const Analytics: React.FC = () => {
                     <p className="section-kicker">Weak areas</p>
                     <h2>Topic-wise Performance</h2>
                   </div>
-                  <div className="chart-container">
+                  {data.topicAverages.length ? <div className="chart-container">
                     <ResponsiveContainer width="100%" height="100%">
                       <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data.topicAverages}>
                         <PolarGrid stroke="#e5eee5" />
@@ -92,14 +110,14 @@ export const Analytics: React.FC = () => {
                         <RechartsTooltip />
                       </RadarChart>
                     </ResponsiveContainer>
-                  </div>
+                  </div> : <p className="session-state">Topic scores will appear after your first evaluated answer.</p>}
                 </section>
                 <section className="analytics-card">
                   <div>
                     <p className="section-kicker">Progress</p>
                     <h2>Sessions Over Time</h2>
                   </div>
-                  <div className="chart-container">
+                  {data.sessionsOverTime.length ? <div className="chart-container">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={data.sessionsOverTime} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5eee5" />
@@ -109,9 +127,15 @@ export const Analytics: React.FC = () => {
                         <Line type="monotone" dataKey="score" stroke="#3a6e3a" strokeWidth={3} dot={{ r: 4, fill: "#3a6e3a" }} activeDot={{ r: 6 }} />
                       </LineChart>
                     </ResponsiveContainer>
-                  </div>
+                  </div> : <p className="session-state">Your scored session history will appear here.</p>}
                 </section>
               </div>
+              <section className="analytics-card analytics-usage">
+                <div className="analytics-card-heading"><div><p className="section-kicker">Usage</p><h2>AI Usage by Provider</h2></div></div>
+                {data.usage.providers.length ? <div className="analytics-usage-grid">{data.usage.providers.map((provider) => <article className="analytics-provider" key={provider.provider}>
+                  <h3>{provider.provider}</h3><dl><div><dt>Total tokens</dt><dd>{provider.totalTokens.toLocaleString()}</dd></div><div><dt>Prompt / completion</dt><dd>{provider.promptTokens.toLocaleString()} / {provider.completionTokens.toLocaleString()}</dd></div><div><dt>Estimated cost</dt><dd>${provider.estimatedCostUsd.toFixed(4)}</dd></div><div><dt>Latency p50 / p95</dt><dd>{provider.p50LatencyMs} / {provider.p95LatencyMs} ms</dd></div></dl>
+                </article>)}</div> : <p className="session-state">Provider usage will appear after you complete an AI powered interview action.</p>}
+              </section>
             </>}
 
     </main></div>
