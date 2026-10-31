@@ -333,7 +333,7 @@ export const createTurn = async (
       llm.generate({
         messages: buildNextQuestionMessages(session, session.turns, answer),
         options: {
-          maxTokens: 600
+          maxTokens: 300
         }
       }),
       evaluateAnswer({
@@ -430,7 +430,7 @@ export const startSessionStream = async (userId: string, sessionId: string) => {
       { role: "system", content: buildInterviewerSystemPrompt(session) },
       { role: "user", content: "Begin the interview with the first question." }
     ],
-    options: { maxTokens: 600 }
+    options: { maxTokens: 200 }
   };
 
   // Gemini's streaming endpoint can terminate after a partial candidate. Use
@@ -549,7 +549,14 @@ export const createTurnStream = async (
     userId,
     sessionId
   }).catch(e => {
-    evaluationError = e instanceof Error ? e.message.replace(/AIza[\w-]{20,}/g, "[redacted]").slice(0, 240) : "Unknown evaluation error";
+    const message = e instanceof Error ? e.message : "";
+    evaluationError = /429|rate.?limit|RESOURCE_EXHAUSTED/i.test(message)
+      ? "The model provider's token rate limit was reached. Wait for it to reset or configure another provider for scoring."
+      : /timed out/i.test(message)
+        ? "The evaluation provider timed out. Try this answer again."
+        : /JSON|schema/i.test(message)
+          ? "The evaluation provider returned an invalid score format. Try this answer again."
+          : "The evaluation provider could not score this answer. Check the server logs for details.";
     console.error("Evaluation failed", e);
     return null;
   });
@@ -561,7 +568,7 @@ export const createTurnStream = async (
   const questionRequest = {
     messages: buildNextQuestionMessages(session, session.turns, answer, reviewFocus),
     options: {
-      maxTokens: 600
+      maxTokens: 300
     }
   };
 

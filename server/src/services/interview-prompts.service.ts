@@ -108,13 +108,12 @@ export const buildNextQuestionMessages = (
     }
   ];
 
-  for (const turn of turns) {
-    if (turn.role === "USER" || turn.role === "ASSISTANT") {
-      messages.push({
-        role: turn.role === "USER" ? "user" : "assistant",
-        content: turn.content
-      });
-    }
+  // Keep recent context bounded so longer sessions stay within free-tier token limits.
+  for (const turn of turns.filter((turn) => turn.role === "USER" || turn.role === "ASSISTANT").slice(-6)) {
+    messages.push({
+      role: turn.role === "USER" ? "user" : "assistant",
+      content: turn.content
+    });
   }
 
   messages.push({ role: "user", content: latestAnswer });

@@ -3,6 +3,7 @@ import { config } from "../config.js";
 import { HttpError } from "../middleware/error.js";
 import { buildEvaluationMessages, type EvaluationPromptVersion } from "./interview-prompts.service.js";
 import { createLLMService, type LLMGenerateResult, type LLMProvider } from "./llm/index.js";
+import { ProviderRateLimitError } from "./llm/http.js";
 import { logUsage } from "./usage-log.service.js";
 
 type EvaluateAnswerInput = {
@@ -82,44 +83,50 @@ export const evaluateAnswer = async (input: EvaluateAnswerInput) => {
   let lastError: unknown;
 
   for (const currentProvider of providers) {
-    const startedAt = Date.now();
-    try {
-      const result: LLMGenerateResult = await createLLMService(currentProvider).generate({
-        messages,
-        options: {
-          // Leave enough room for the final JSON payload.
-          maxTokens: 600,
-          jsonMode: true,
-          // v2 is intentionally deterministic; v1 remains the historical baseline.
-          temperature: input.promptVersion === "v1" ? 0.7 : 0
-        }
-      });
-      const scores = validateEvaluationScores(parseJsonObject(result.content));
-      await logUsage({
-        userId: input.userId,
-        sessionId: input.sessionId,
-        provider: result.provider,
-        model: result.model,
-        operation: "answer.evaluate",
-        latencyMs: Date.now() - startedAt,
-        usage: result.usage,
-        metadata: { status: "success" }
-      }).catch((error) => console.error("Unable to record evaluation usage", error));
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const startedAt = Date.now();
+      try {
+        const result: LLMGenerateResult = await createLLMService(currentProvider).generate({
+          messages,
+          options: {
+            maxTokens: 300,
+            jsonMode: true,
+            temperature: input.promptVersion === "v1" ? 0.7 : 0
+          }
+        });
+        const scores = validateEvaluationScores(parseJsonObject(result.content));
+        await logUsage({
+          userId: input.userId,
+          sessionId: input.sessionId,
+          provider: result.provider,
+          model: result.model,
+          operation: "answer.evaluate",
+          latencyMs: Date.now() - startedAt,
+          usage: result.usage,
+          metadata: { status: "success" }
+        }).catch((error) => console.error("Unable to record evaluation usage", error));
 
-      return { provider: result.provider, model: result.model, scores };
-    } catch (error) {
-      lastError = error;
-      await logUsage({
-        userId: input.userId,
-        sessionId: input.sessionId,
-        provider: currentProvider,
-        operation: "answer.evaluate",
-        latencyMs: Date.now() - startedAt,
-        metadata: {
-          status: "error",
-          error: error instanceof Error ? error.message : "Unknown LLM error"
+        return { provider: result.provider, model: result.model, scores };
+      } catch (error) {
+        lastError = error;
+        await logUsage({
+          userId: input.userId,
+          sessionId: input.sessionId,
+          provider: currentProvider,
+          operation: "answer.evaluate",
+          latencyMs: Date.now() - startedAt,
+          metadata: {
+            status: "error",
+            error: error instanceof Error ? error.message : "Unknown LLM error"
+          }
+        }).catch((loggingError) => console.error("Unable to record evaluation failure", loggingError));
+
+        if (attempt === 0 && error instanceof ProviderRateLimitError && error.retryAfterMs !== null && error.retryAfterMs <= 60_000) {
+          await new Promise((resolve) => setTimeout(resolve, error.retryAfterMs! + 150));
+          continue;
         }
-      }).catch((loggingError) => console.error("Unable to record evaluation failure", loggingError));
+        break;
+      }
     }
   }
 
