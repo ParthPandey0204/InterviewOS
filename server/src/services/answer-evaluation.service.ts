@@ -69,56 +69,59 @@ const defaultProvider = (): LLMProvider => {
 
 export const evaluateAnswer = async (input: EvaluateAnswerInput) => {
   const provider = input.provider ?? defaultProvider();
-  const llm = createLLMService(provider);
-  const startedAt = Date.now();
+  const providers: LLMProvider[] = [provider];
+  const alternate: LLMProvider = provider === "gemini" ? "groq" : "gemini";
+  const alternateConfigured = alternate === "gemini" ? Boolean(config.llm.gemini.apiKey) : Boolean(config.llm.groq.apiKey);
+  if (alternateConfigured) providers.push(alternate);
 
-  let result: LLMGenerateResult;
+  const messages = buildEvaluationMessages({
+    question: input.question,
+    answer: input.answer,
+    version: input.promptVersion
+  });
+  let lastError: unknown;
 
-  try {
-    result = await llm.generate({
-      messages: buildEvaluationMessages({
-        question: input.question,
-        answer: input.answer,
-        version: input.promptVersion
-      }),
-      options: {
-        // Leave enough room for the final JSON payload.
-        maxTokens: 600,
-        // v2 is intentionally deterministic; v1 remains the historical baseline.
-        temperature: input.promptVersion === "v1" ? 0.7 : 0
-      }
-    });
+  for (const currentProvider of providers) {
+    const startedAt = Date.now();
+    try {
+      const result: LLMGenerateResult = await createLLMService(currentProvider).generate({
+        messages,
+        options: {
+          // Leave enough room for the final JSON payload.
+          maxTokens: 600,
+          // v2 is intentionally deterministic; v1 remains the historical baseline.
+          temperature: input.promptVersion === "v1" ? 0.7 : 0
+        }
+      });
+      const scores = validateEvaluationScores(parseJsonObject(result.content));
+      await logUsage({
+        userId: input.userId,
+        sessionId: input.sessionId,
+        provider: result.provider,
+        model: result.model,
+        operation: "answer.evaluate",
+        latencyMs: Date.now() - startedAt,
+        usage: result.usage,
+        metadata: { status: "success" }
+      }).catch((error) => console.error("Unable to record evaluation usage", error));
 
-    await logUsage({
-      userId: input.userId,
-      sessionId: input.sessionId,
-      provider: result.provider,
-      model: result.model,
-      operation: "answer.evaluate",
-      latencyMs: Date.now() - startedAt,
-      usage: result.usage,
-      metadata: { status: "success" }
-    });
-  } catch (error) {
-    await logUsage({
-      userId: input.userId,
-      sessionId: input.sessionId,
-      provider,
-      operation: "answer.evaluate",
-      latencyMs: Date.now() - startedAt,
-      metadata: {
-        status: "error",
-        error: error instanceof Error ? error.message : "Unknown LLM error"
-      }
-    });
-
-    throw error;
+      return { provider: result.provider, model: result.model, scores };
+    } catch (error) {
+      lastError = error;
+      await logUsage({
+        userId: input.userId,
+        sessionId: input.sessionId,
+        provider: currentProvider,
+        operation: "answer.evaluate",
+        latencyMs: Date.now() - startedAt,
+        metadata: {
+          status: "error",
+          error: error instanceof Error ? error.message : "Unknown LLM error"
+        }
+      }).catch((loggingError) => console.error("Unable to record evaluation failure", loggingError));
+    }
   }
 
-  return {
-    provider: result.provider,
-    model: result.model,
-    scores: validateEvaluationScores(parseJsonObject(result.content))
-  };
+  throw lastError instanceof Error ? lastError : new Error("Answer evaluation failed");
 };
 
