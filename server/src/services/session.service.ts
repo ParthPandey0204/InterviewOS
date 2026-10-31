@@ -29,7 +29,7 @@ type ActiveSessionForTurn = {
   targetCompany: string | null;
   targetRole: string | null;
   status: SessionStatus;
-  turns: Array<{ role: TurnRole; content: string }>;
+  turns: Array<{ role: TurnRole; content: string; position: number }>;
 };
 
 const normalizeText = (value: unknown, fieldName: string) => {
@@ -156,7 +156,8 @@ const getActiveSessionForTurn = async (
         orderBy: { position: "asc" },
         select: {
           role: true,
-          content: true
+          content: true,
+          position: true
         }
       }
     }
@@ -178,6 +179,7 @@ const persistTurnPair = async (input: {
   mode: string;
   difficulty: QuestionDifficulty;
   sessionId: string;
+  expectedLatestPosition: number;
   answer: string;
   nextQuestion: string;
   provider: LLMProvider;
@@ -186,11 +188,15 @@ const persistTurnPair = async (input: {
   evaluation?: unknown;
 }) => {
   return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Session" WHERE "id" = ${input.sessionId} FOR UPDATE`;
     const latestTurn = await tx.turn.findFirst({
       where: { sessionId: input.sessionId },
       orderBy: { position: "desc" },
       select: { position: true }
     });
+    if ((latestTurn?.position ?? -1) !== input.expectedLatestPosition) {
+      throw new HttpError(409, "This answer was already submitted. Continue with the latest question.");
+    }
     const position = (latestTurn?.position ?? -1) + 1;
 
     const createdUserTurn = await tx.turn.create({
@@ -384,6 +390,7 @@ export const createTurn = async (
     mode: session.mode,
     difficulty: session.difficulty,
     sessionId,
+    expectedLatestPosition: session.turns.at(-1)?.position ?? -1,
     answer,
     nextQuestion,
     provider: llmResult.provider,
@@ -439,11 +446,20 @@ export const startSessionStream = async (userId: string, sessionId: string) => {
     commit: async (questionContent: string) => {
       const question = questionContent.trim();
       if (!question) throw new HttpError(502, "LLM returned an empty opening question");
-      const turn = await prisma.turn.create({
-        data: { sessionId, role: TurnRole.ASSISTANT, content: question, position: 0, metadata: { provider, model } },
-        select: turnSelect
+      const turn = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "Session" WHERE "id" = ${sessionId} FOR UPDATE`;
+        const existingTurn = await tx.turn.findFirst({
+          where: { sessionId, position: 0 },
+          select: turnSelect
+        });
+        if (existingTurn) return existingTurn;
+        return tx.turn.create({
+          data: { sessionId, role: TurnRole.ASSISTANT, content: question, position: 0, metadata: { provider, model } },
+          select: turnSelect
+        });
       });
-      await indexQuestion({ userId, prompt: question, mode: session.mode, difficulty: session.difficulty });
+      void indexQuestion({ userId, prompt: turn.content, mode: session.mode, difficulty: session.difficulty })
+        .catch((error) => console.error("Unable to index the opening interview question", error));
       return { turn };
     }
   };
@@ -601,6 +617,7 @@ export const createTurnStream = async (
         mode: session.mode,
         difficulty: session.difficulty,
         sessionId,
+        expectedLatestPosition: session.turns.at(-1)?.position ?? -1,
         answer,
         nextQuestion,
         provider,

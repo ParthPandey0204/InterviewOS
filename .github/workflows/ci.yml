@@ -19,3 +19,6 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm exec --workspace server -- prisma validate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/interviewos?schema=public
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/interviewos?schema=public

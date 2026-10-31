@@ -44,27 +44,32 @@ const textFromParts = (parts: unknown) => {
 
 const firstCandidateText = (payload: unknown) => {
   if (typeof payload !== "object" || payload === null || !("candidates" in payload)) {
-    return "";
+    const blockReason = typeof payload === "object" && payload !== null && "promptFeedback" in payload
+      ? (payload as { promptFeedback?: { blockReason?: unknown } }).promptFeedback?.blockReason
+      : undefined;
+    throw new Error(`Gemini returned no candidates${typeof blockReason === "string" ? ` (prompt blocked: ${blockReason})` : ""}`);
   }
 
   const candidates = (payload as { candidates?: unknown }).candidates;
 
   if (!Array.isArray(candidates)) {
-    return "";
+    throw new Error("Gemini response contained an invalid candidates field");
   }
 
   const [candidate] = candidates;
-
-  if (typeof candidate === "object" && candidate !== null && (candidate as { finishReason?: unknown }).finishReason === "MAX_TOKENS") {
-    throw new Error("Gemini response was truncated (MAX_TOKENS)");
+  if (typeof candidate !== "object" || candidate === null) {
+    throw new Error("Gemini response contained no candidate text");
   }
 
-  if (typeof candidate !== "object" || candidate === null || !("content" in candidate)) {
-    return "";
-  }
+  const finishReason = (candidate as { finishReason?: unknown }).finishReason;
+  if (finishReason === "MAX_TOKENS") throw new Error("Gemini response was truncated (MAX_TOKENS)");
 
   const content = (candidate as { content?: { parts?: unknown } }).content;
-  return textFromParts(content?.parts);
+  const text = textFromParts(content?.parts).trim();
+  if (!text) {
+    throw new Error(`Gemini returned no text${typeof finishReason === "string" ? ` (finish reason: ${finishReason})` : ""}`);
+  }
+  return text;
 };
 
 const usageFromPayload = (payload: unknown) => {
@@ -209,11 +214,18 @@ export class GeminiService implements LLMService {
       throw error;
     }
     const payload = (await response.json()) as unknown;
+    let content: string;
+    try {
+      content = firstCandidateText(payload);
+    } catch (error) {
+      if (config.llm.groq.apiKey) return new GroqService().generate(request);
+      throw error;
+    }
 
     return {
       provider: this.provider,
       model,
-      content: firstCandidateText(payload),
+      content,
       usage: usageFromPayload(payload)
     };
   }

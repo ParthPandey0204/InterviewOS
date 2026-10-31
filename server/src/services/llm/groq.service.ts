@@ -15,7 +15,8 @@ type GroqServiceOptions = {
 };
 
 type GroqChoice = {
-  message?: { content?: unknown };
+  finish_reason?: unknown;
+  message?: { content?: unknown; refusal?: unknown };
   delta?: { content?: unknown };
 };
 
@@ -130,11 +131,16 @@ export class GroqService implements LLMService {
     const payload = (await response.json()) as unknown;
     const [choice] = choicesFromPayload(payload);
     const content = choice?.message?.content;
+    if (typeof content !== "string" || !content.trim()) {
+      const refusal = typeof choice?.message?.refusal === "string" ? ` (refusal: ${choice.message.refusal})` : "";
+      const finishReason = typeof choice?.finish_reason === "string" ? ` (finish reason: ${choice.finish_reason})` : "";
+      throw new Error(`Groq returned no text${refusal || finishReason}`);
+    }
 
     return {
       provider: this.provider,
       model,
-      content: typeof content === "string" ? content : "",
+      content,
       usage: usageFromPayload(payload)
     };
   }
