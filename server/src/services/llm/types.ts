@@ -18,6 +18,7 @@ export type LLMGenerateOptions = {
     schema: Record<string, unknown>;
   };
   reasoningEffort?: "low" | "medium" | "high";
+  disableProviderFallback?: boolean;
 };
 
 export type LLMGenerateRequest = {

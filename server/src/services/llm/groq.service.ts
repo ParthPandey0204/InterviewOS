@@ -1,5 +1,5 @@
 import { config } from "../../config.js";
-import { ensureOk, fetchWithTimeout, requireApiKey } from "./http.js";
+import { ensureOk, fetchWithTimeout, ProviderOutputTruncatedError, requireApiKey } from "./http.js";
 import type {
   LLMGenerateRequest,
   LLMGenerateResult,
@@ -148,7 +148,7 @@ export class GroqService implements LLMService {
     const payload = (await response.json()) as unknown;
     const [choice] = choicesFromPayload(payload);
     if (choice?.finish_reason === "length") {
-      throw new Error("Groq evaluation response was truncated by the output token limit");
+      throw new ProviderOutputTruncatedError("Groq");
     }
     const content = choice?.message?.content;
     if (typeof content !== "string" || !content.trim()) {

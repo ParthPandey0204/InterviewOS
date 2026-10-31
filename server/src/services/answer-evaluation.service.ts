@@ -3,7 +3,7 @@ import { config } from "../config.js";
 import { HttpError } from "../middleware/error.js";
 import { buildEvaluationMessages, type EvaluationPromptVersion } from "./interview-prompts.service.js";
 import { createLLMService, type LLMGenerateResult, type LLMProvider } from "./llm/index.js";
-import { ProviderRateLimitError } from "./llm/http.js";
+import { ProviderOutputTruncatedError, ProviderRateLimitError } from "./llm/http.js";
 import { logUsage } from "./usage-log.service.js";
 
 type EvaluateAnswerInput = {
@@ -82,15 +82,17 @@ export const evaluateAnswer = async (input: EvaluateAnswerInput) => {
   let lastError: unknown;
 
   for (const currentProvider of providers) {
+    let maxTokens = 1200;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const startedAt = Date.now();
       try {
         const result: LLMGenerateResult = await createLLMService(currentProvider).generate({
           messages,
           options: {
-            maxTokens: 700,
+            maxTokens,
             jsonMode: true,
             reasoningEffort: "low",
+            disableProviderFallback: true,
             jsonSchema: {
               name: "answer_evaluation",
               schema: {
@@ -138,6 +140,10 @@ export const evaluateAnswer = async (input: EvaluateAnswerInput) => {
 
         if (attempt === 0 && error instanceof ProviderRateLimitError && error.retryAfterMs !== null && error.retryAfterMs <= 60_000) {
           await new Promise((resolve) => setTimeout(resolve, error.retryAfterMs! + 150));
+          continue;
+        }
+        if (attempt === 0 && error instanceof ProviderOutputTruncatedError) {
+          maxTokens = 1800;
           continue;
         }
         break;

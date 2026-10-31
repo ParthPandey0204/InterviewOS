@@ -554,6 +554,8 @@ export const createTurnStream = async (
       ? "The model provider's token rate limit was reached. Wait for it to reset or configure another provider for scoring."
       : /timed out/i.test(message)
         ? "The evaluation provider timed out. Try this answer again."
+        : /truncated|output token limit/i.test(message)
+          ? "The evaluation response exceeded its output limit. Try this answer again."
         : /JSON|schema/i.test(message)
           ? "The evaluation provider returned an invalid score format. Try this answer again."
           : "The evaluation provider could not score this answer. Check the server logs for details.";

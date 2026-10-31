@@ -7,6 +7,13 @@ export class ProviderRateLimitError extends HttpError {
   }
 }
 
+export class ProviderOutputTruncatedError extends Error {
+  constructor(provider: string) {
+    super(`${provider} response was truncated by the output token limit`);
+    this.name = "ProviderOutputTruncatedError";
+  }
+}
+
 const retryAfterMilliseconds = (response: Response) => {
   const retryAfter = response.headers.get("retry-after");
   if (!retryAfter) return null;

@@ -209,7 +209,7 @@ export class GeminiService implements LLMService {
       );
       await ensureOk(response, "Gemini");
     } catch (error) {
-      if (canFallBackToGroq(error) && config.llm.groq.apiKey) {
+      if (!request.options?.disableProviderFallback && canFallBackToGroq(error) && config.llm.groq.apiKey) {
         return new GroqService().generate(request);
       }
       throw error;
@@ -219,7 +219,7 @@ export class GeminiService implements LLMService {
     try {
       content = firstCandidateText(payload);
     } catch (error) {
-      if (config.llm.groq.apiKey) return new GroqService().generate(request);
+      if (!request.options?.disableProviderFallback && config.llm.groq.apiKey) return new GroqService().generate(request);
       throw error;
     }
 
