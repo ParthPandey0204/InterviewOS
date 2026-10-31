@@ -13,6 +13,10 @@ export type LLMGenerateOptions = {
   maxTokens?: number;
   stop?: string[];
   jsonMode?: boolean;
+  jsonSchema?: {
+    name: string;
+    schema: Record<string, unknown>;
+  };
 };
 
 export type LLMGenerateRequest = {

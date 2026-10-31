@@ -20,8 +20,7 @@ export const evaluationScoresSchema = z
     correctness: z.number().int().min(0).max(5),
     clarity: z.number().int().min(0).max(5),
     depth: z.number().int().min(0).max(5)
-  })
-  .strict();
+  });
 
 export type EvaluationScores = z.infer<typeof evaluationScoresSchema>;
 
@@ -91,6 +90,21 @@ export const evaluateAnswer = async (input: EvaluateAnswerInput) => {
           options: {
             maxTokens: 300,
             jsonMode: true,
+            jsonSchema: {
+              name: "answer_evaluation",
+              schema: {
+                type: "object",
+                properties: {
+                  correctness: { type: "integer", minimum: 0, maximum: 5 },
+                  clarity: { type: "integer", minimum: 0, maximum: 5 },
+                  depth: { type: "integer", minimum: 0, maximum: 5 },
+                  feedback: { type: "string" },
+                  betterAnswer: { type: "string" }
+                },
+                required: ["correctness", "clarity", "depth", "feedback", "betterAnswer"],
+                additionalProperties: false
+              }
+            },
             temperature: input.promptVersion === "v1" ? 0.7 : 0
           }
         });

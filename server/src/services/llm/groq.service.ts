@@ -55,7 +55,20 @@ const toGroqBody = (request: LLMGenerateRequest, model: string, stream: boolean)
     content: message.content
   })),
   stream,
-  ...(request.options?.jsonMode ? { response_format: { type: "json_object" } } : {}),
+  ...(request.options?.jsonSchema
+    ? {
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: request.options.jsonSchema.name,
+            strict: true,
+            schema: request.options.jsonSchema.schema
+          }
+        }
+      }
+    : request.options?.jsonMode
+      ? { response_format: { type: "json_object" } }
+      : {}),
   ...(typeof request.options?.temperature === "number"
     ? { temperature: request.options.temperature }
     : {}),
