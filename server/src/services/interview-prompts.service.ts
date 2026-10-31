@@ -153,8 +153,8 @@ export const buildEvaluationMessages = (input: {
         "Return strict JSON only, with no markdown, commentary, or extra keys.",
         "Schema: {\"correctness\": number, \"clarity\": number, \"depth\": number, \"feedback\": string, \"betterAnswer\": string}",
         "Each score must be an integer from 0 to 5.",
-        "feedback must be a concise, constructive explanation of the most important improvement.",
-        "betterAnswer must be a concise, interview-ready answer that correctly addresses the question. Do not refer to the candidate's answer.",
+        "feedback must be one concise, constructive sentence naming the most important improvement.",
+        "betterAnswer must be a concise, interview-ready answer of at most 4 sentences that correctly addresses the question. Do not refer to the candidate's answer.",
         ...calibration,
         context.trim()
       ]

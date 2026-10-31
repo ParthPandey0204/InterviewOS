@@ -88,8 +88,9 @@ export const evaluateAnswer = async (input: EvaluateAnswerInput) => {
         const result: LLMGenerateResult = await createLLMService(currentProvider).generate({
           messages,
           options: {
-            maxTokens: 300,
+            maxTokens: 700,
             jsonMode: true,
+            reasoningEffort: "low",
             jsonSchema: {
               name: "answer_evaluation",
               schema: {

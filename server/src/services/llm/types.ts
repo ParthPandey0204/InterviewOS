@@ -17,6 +17,7 @@ export type LLMGenerateOptions = {
     name: string;
     schema: Record<string, unknown>;
   };
+  reasoningEffort?: "low" | "medium" | "high";
 };
 
 export type LLMGenerateRequest = {

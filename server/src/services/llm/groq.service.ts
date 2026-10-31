@@ -75,6 +75,9 @@ const toGroqBody = (request: LLMGenerateRequest, model: string, stream: boolean)
   ...(typeof request.options?.maxTokens === "number"
     ? { max_tokens: request.options.maxTokens }
     : {}),
+  ...(request.options?.reasoningEffort && model.startsWith("openai/gpt-oss-")
+    ? { reasoning_effort: request.options.reasoningEffort }
+    : {}),
   ...(request.options?.stop ? { stop: request.options.stop } : {})
 });
 
@@ -144,6 +147,9 @@ export class GroqService implements LLMService {
     await ensureOk(response, "Groq");
     const payload = (await response.json()) as unknown;
     const [choice] = choicesFromPayload(payload);
+    if (choice?.finish_reason === "length") {
+      throw new Error("Groq evaluation response was truncated by the output token limit");
+    }
     const content = choice?.message?.content;
     if (typeof content !== "string" || !content.trim()) {
       const refusal = typeof choice?.message?.refusal === "string" ? ` (refusal: ${choice.message.refusal})` : "";
