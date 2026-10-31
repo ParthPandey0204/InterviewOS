@@ -117,6 +117,7 @@ const toGeminiBody = (request: LLMGenerateRequest, model: string) => {
         }
       : {}),
     generationConfig: {
+      ...(request.options?.jsonMode ? { responseMimeType: "application/json" } : {}),
       ...(!isGemini3 && typeof request.options?.temperature === "number"
         ? { temperature: request.options.temperature }
         : {}),

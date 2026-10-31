@@ -541,6 +541,7 @@ export const createTurnStream = async (
   const previousAssistantTurn = [...session.turns].reverse().find(t => t.role === TurnRole.ASSISTANT);
   const previousQuestion = previousAssistantTurn?.content ?? "Please introduce yourself and explain your background.";
 
+  let evaluationError: string | null = null;
   const evaluationPromise = evaluateAnswer({
     question: previousQuestion,
     answer,
@@ -548,6 +549,7 @@ export const createTurnStream = async (
     userId,
     sessionId
   }).catch(e => {
+    evaluationError = e instanceof Error ? e.message.replace(/AIza[\w-]{20,}/g, "[redacted]").slice(0, 240) : "Unknown evaluation error";
     console.error("Evaluation failed", e);
     return null;
   });
@@ -602,6 +604,7 @@ export const createTurnStream = async (
   return {
     provider,
     evaluation: evaluationPromise,
+    getEvaluationError: () => evaluationError,
     stream: stream(),
     commit: async (nextQuestionContent: string) => {
       const nextQuestion = nextQuestionContent.trim();

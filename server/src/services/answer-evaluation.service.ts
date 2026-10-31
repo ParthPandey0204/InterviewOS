@@ -89,6 +89,7 @@ export const evaluateAnswer = async (input: EvaluateAnswerInput) => {
         options: {
           // Leave enough room for the final JSON payload.
           maxTokens: 600,
+          jsonMode: true,
           // v2 is intentionally deterministic; v1 remains the historical baseline.
           temperature: input.promptVersion === "v1" ? 0.7 : 0
         }

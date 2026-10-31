@@ -6,7 +6,7 @@ import { AiResponseText } from "../components/AiResponseText";
 
 type Turn = { id: string; role: "USER" | "ASSISTANT"; content: string; metadata?: { evaluation?: EvaluationScores } };
 type Session = { id: string; mode: string; difficulty: string; targetCompany: string | null; turns: Turn[] };
-type Review = { question: string; answer: string; evaluation: EvaluationScores | null };
+type Review = { question: string; answer: string; evaluation: EvaluationScores | null; evaluationError?: string };
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 const parseEvents = (buffer: string) => {
@@ -185,20 +185,21 @@ export const InterviewRoom: React.FC = () => {
     try {
       const response = await streamRequest(`/api/sessions/${id}/turns/stream`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${getAccessToken()}` }, credentials: "include", body: JSON.stringify({ answer: answerToSubmit }) });
       if (!response.ok || !response.body) { const data = await response.json().catch(() => ({})); throw new Error(data.error?.message || "Unable to submit answer"); }
-      const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ""; let completed = false;
+      const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ""; let completed = false; let evaluationError: string | undefined;
       const handleEvent = (message: string) => {
         const name = message.split(/\r?\n/).find((line) => line.startsWith("event:"))?.slice(6).trim();
         const line = message.split(/\r?\n/).find((item) => item.startsWith("data:"));
         if (!line) return;
         const payload = JSON.parse(line.slice(5).trim());
         if (name === "review") {
-          setReview({ question: questionToReview, answer: answerToSubmit, evaluation: payload.evaluation ?? null });
+          evaluationError = typeof payload.error === "string" ? payload.error : undefined;
+          setReview({ question: questionToReview, answer: answerToSubmit, evaluation: payload.evaluation ?? null, evaluationError });
         }
         if (name === "done") {
           completed = true;
           setStreamingQuestion("");
           setSession((current) => current ? { ...current, turns: [...current.turns, payload.turn, payload.nextQuestion] } : current);
-          setReview({ question: questionToReview, answer: answerToSubmit, evaluation: payload.turn.metadata?.evaluation ?? null });
+          setReview({ question: questionToReview, answer: answerToSubmit, evaluation: payload.turn.metadata?.evaluation ?? null, evaluationError });
         }
         if (name === "error") throw new Error(payload.message || "Interview stream failed");
       };
@@ -216,7 +217,7 @@ export const InterviewRoom: React.FC = () => {
   if (review) {
     const total = review.evaluation ? review.evaluation.correctness + review.evaluation.clarity + review.evaluation.depth : 0;
     const needsBetterAnswer = total < 12;
-    return <div className="room-page">{header}<main className="review-layout"><section className="answer-review"><p className="section-kicker">Answer review</p><h1>{needsBetterAnswer ? "Here’s how to strengthen your answer" : "Your answer is on the right track"}</h1><div className="review-question"><span>Question</span><AiResponseText content={review.question} /></div>{review.evaluation ? <><AiResponseText className="review-feedback" content={review.evaluation.feedback || "Review the score breakdown, then continue when you are ready."} />{needsBetterAnswer && <article className="better-answer"><p className="section-kicker">A stronger answer</p><AiResponseText content={review.evaluation.betterAnswer || "A model answer is unavailable for this response."} /></article>}</> : <p className="review-feedback">Your response was saved, but its automated evaluation was unavailable this time.</p>}{error && <p className="room-error">{error} Your answer is still here; select Retry answer to try again.</p>}<button className="primary-action next-question-button" type="button" disabled={isStreaming || endingSession} onClick={() => setReview(null)}>{isStreaming ? "Preparing next question…" : error ? "Retry answer" : "Next Question"}</button></section>{review.evaluation && <ScoreCard scores={review.evaluation} />}</main></div>;
+    return <div className="room-page">{header}<main className="review-layout"><section className="answer-review"><p className="section-kicker">Answer review</p><h1>{needsBetterAnswer ? "Here’s how to strengthen your answer" : "Your answer is on the right track"}</h1><div className="review-question"><span>Question</span><AiResponseText content={review.question} /></div>{review.evaluation ? <><AiResponseText className="review-feedback" content={review.evaluation.feedback || "Review the score breakdown, then continue when you are ready."} />{needsBetterAnswer && <article className="better-answer"><p className="section-kicker">A stronger answer</p><AiResponseText content={review.evaluation.betterAnswer || "A model answer is unavailable for this response."} /></article>}</> : <div className="review-feedback"><p>Your response was saved, but its automated evaluation was unavailable this time.</p>{review.evaluationError && <p className="evaluation-error-detail">Reason: {review.evaluationError}</p>}</div>}{error && <p className="room-error">{error} Your answer is still here; select Retry answer to try again.</p>}<button className="primary-action next-question-button" type="button" disabled={isStreaming || endingSession} onClick={() => setReview(null)}>{isStreaming ? "Preparing next question…" : error ? "Retry answer" : "Next Question"}</button></section>{review.evaluation && <ScoreCard scores={review.evaluation} />}</main></div>;
   }
 
   return <div className="room-page">{header}<main className="room-layout"><section className="interview-panel"><div className="question-box"><p className="section-kicker">Interviewer question</p>{streamingQuestion || latestQuestion ? <h1>{streamingQuestion || latestQuestion}</h1> : <h1 className="question-placeholder">{startingQuestion ? "Connecting to your interviewer…" : "Your interviewer has not generated a question yet."}</h1>}{startingQuestion && <span className="streaming-indicator">Generating your opening question…</span>}{error && !latestQuestion && <button className="retry-question-button" type="button" onClick={retryOpeningQuestion}>Try again</button>}</div><form className="answer-composer" onSubmit={submitAnswer}><label htmlFor="answer">Your answer</label><textarea id="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Think aloud, explain your reasoning, and mention any trade-offs…" disabled={isStreaming || startingQuestion || !latestQuestion} required /><div className="answer-actions"><span>{answer.trim().split(/\s+/).filter(Boolean).length} words</span><div className="answer-buttons"><button className={`voice-action ${isListening ? "voice-listening" : ""}`} type="button" onClick={dictateAnswer} disabled={isStreaming || startingQuestion || !latestQuestion}>{isListening ? "Stop listening" : "Use voice"}</button><button className="primary-action" disabled={isStreaming || startingQuestion || !latestQuestion || !answer.trim()}>{isStreaming ? "Reviewing answer…" : "Submit answer"}</button></div></div></form>{error && <p className="room-error">{error}</p>}</section></main></div>;

@@ -12,6 +12,7 @@ export type LLMGenerateOptions = {
   temperature?: number;
   maxTokens?: number;
   stop?: string[];
+  jsonMode?: boolean;
 };
 
 export type LLMGenerateRequest = {

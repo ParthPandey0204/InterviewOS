@@ -493,6 +493,7 @@ body {
 .ai-response-text li::marker { color: #4d8357; }
 .review-question .ai-response-text { font-size: 1.02rem; margin-top: 7px; }
 .review-feedback { color: var(--color-text-muted); font-size: 1.08rem; margin: 22px 0; }
+.evaluation-error-detail { color: #805b22; font-size: .86rem; line-height: 1.45; overflow-wrap: anywhere; }
 .review-feedback.ai-response-text { color: var(--color-text-muted); }
 .better-answer { background: linear-gradient(135deg, #f5fbf5, #e8f4e9); border: 1px solid #c9ddca; border-radius: 12px; box-shadow: inset 3px 0 0 #6fa274; padding: 22px 24px; }
 .better-answer .section-kicker { margin: 0; }

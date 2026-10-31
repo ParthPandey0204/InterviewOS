@@ -82,7 +82,10 @@ export const createTurnStream = asyncHandler(async (request: Request, response: 
   writeSse(response, "ready", { provider: turnStream.provider });
   const reviewEvent = turnStream.evaluation.then((evaluation) => {
     if (!response.destroyed && !response.writableEnded) {
-      writeSse(response, "review", { evaluation: evaluation?.scores ?? null });
+      writeSse(response, "review", {
+        evaluation: evaluation?.scores ?? null,
+        error: turnStream.getEvaluationError()
+      });
     }
   });
 
