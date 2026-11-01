@@ -206,7 +206,13 @@ export const InterviewRoom: React.FC = () => {
       while (true) { const { done, value } = await reader.read(); if (done) break; buffer += decoder.decode(value, { stream: true }); const { complete, remainder } = parseEvents(buffer); buffer = remainder; complete.forEach(handleEvent); }
       if (buffer.trim()) handleEvent(buffer);
       if (!completed) throw new Error("The interview response finished without a next question. Please try again.");
-    } catch (submitError) { setError(submitError instanceof Error ? submitError.message : "Unable to submit answer"); setAnswer(answerToSubmit); }
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : "Unable to submit answer";
+      setError(/truncated|output token limit/i.test(message)
+        ? "The next question was cut off before it finished. Your answer is preserved; try again."
+        : message);
+      setAnswer(answerToSubmit);
+    }
     finally { setIsStreaming(false); setStreamingQuestion(""); }
   };
 
@@ -217,8 +223,34 @@ export const InterviewRoom: React.FC = () => {
   if (review) {
     const total = review.evaluation ? review.evaluation.correctness + review.evaluation.clarity + review.evaluation.depth : 0;
     const needsBetterAnswer = total < 12;
-    return <div className="room-page">{header}<main className="review-layout"><section className="answer-review"><p className="section-kicker">Answer review</p><h1>{needsBetterAnswer ? "Here’s how to strengthen your answer" : "Your answer is on the right track"}</h1><div className="review-question"><span>Question</span><AiResponseText content={review.question} /></div>{review.evaluation ? <><AiResponseText className="review-feedback" content={review.evaluation.feedback || "Review the score breakdown, then continue when you are ready."} />{needsBetterAnswer && <article className="better-answer"><p className="section-kicker">A stronger answer</p><AiResponseText content={review.evaluation.betterAnswer || "A model answer is unavailable for this response."} /></article>}</> : <div className="review-feedback"><p>Your response was saved, but its automated evaluation was unavailable this time.</p>{review.evaluationError && <p className="evaluation-error-detail">Reason: {review.evaluationError}</p>}</div>}{error && <p className="room-error">{error} Your answer is still here; select Retry answer to try again.</p>}<button className="primary-action next-question-button" type="button" disabled={isStreaming || endingSession} onClick={() => setReview(null)}>{isStreaming ? "Preparing next question…" : error ? "Retry answer" : "Next Question"}</button></section>{review.evaluation && <ScoreCard scores={review.evaluation} />}</main></div>;
+    return (
+      <div className="room-page">
+        {header}
+        <main className="review-layout">
+          <section className="answer-review">
+            <p className="section-kicker">Answer review</p>
+            <h1>{needsBetterAnswer ? "Here’s how to strengthen your answer" : "Your answer is on the right track"}</h1>
+            <div className="review-question"><span>Question</span><AiResponseText content={review.question} /></div>
+            {review.evaluation ? (
+              <>
+                <AiResponseText className="review-feedback" content={review.evaluation.feedback || "Review the score breakdown, then continue when you are ready."} />
+                {needsBetterAnswer && <article className="better-answer"><p className="section-kicker">A stronger answer</p><AiResponseText content={review.evaluation.betterAnswer || "A model answer is unavailable for this response."} /></article>}
+              </>
+            ) : (
+              <div className="review-feedback">
+                <p>Your response was saved, but its automated evaluation was unavailable this time.</p>
+                {review.evaluationError && <p className="evaluation-error-detail">Reason: {review.evaluationError}</p>}
+              </div>
+            )}
+            {error && <p className="room-error">{error}</p>}
+            <button className="primary-action next-question-button" type="button" disabled={isStreaming || endingSession} onClick={() => setReview(null)}>
+              {isStreaming ? "Preparing next question…" : error ? "Try again" : "Next Question"}
+            </button>
+          </section>
+          {review.evaluation && <ScoreCard scores={review.evaluation} />}
+        </main>
+      </div>
+    );
   }
-
   return <div className="room-page">{header}<main className="room-layout"><section className="interview-panel"><div className="question-box"><p className="section-kicker">Interviewer question</p>{streamingQuestion || latestQuestion ? <h1>{streamingQuestion || latestQuestion}</h1> : <h1 className="question-placeholder">{startingQuestion ? "Connecting to your interviewer…" : "Your interviewer has not generated a question yet."}</h1>}{startingQuestion && <span className="streaming-indicator">Generating your opening question…</span>}{error && !latestQuestion && <button className="retry-question-button" type="button" onClick={retryOpeningQuestion}>Try again</button>}</div><form className="answer-composer" onSubmit={submitAnswer}><label htmlFor="answer">Your answer</label><textarea id="answer" value={answer} onChange={(event) => setAnswer(event.target.value)} placeholder="Think aloud, explain your reasoning, and mention any trade-offs…" disabled={isStreaming || startingQuestion || !latestQuestion} required /><div className="answer-actions"><span>{answer.trim().split(/\s+/).filter(Boolean).length} words</span><div className="answer-buttons"><button className={`voice-action ${isListening ? "voice-listening" : ""}`} type="button" onClick={dictateAnswer} disabled={isStreaming || startingQuestion || !latestQuestion}>{isListening ? "Stop listening" : "Use voice"}</button><button className="primary-action" disabled={isStreaming || startingQuestion || !latestQuestion || !answer.trim()}>{isStreaming ? "Reviewing answer…" : "Submit answer"}</button></div></div></form>{error && <p className="room-error">{error}</p>}</section></main></div>;
 };

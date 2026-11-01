@@ -5,6 +5,7 @@ import { prisma } from "../prisma/client.js";
 import { evaluateAnswer, type AnswerEvaluation } from "./answer-evaluation.service.js";
 import { buildInterviewerSystemPrompt, buildNextQuestionMessages } from "./interview-prompts.service.js";
 import { createLLMService, type LLMGenerateRequest, type LLMGenerateResult, type LLMProvider } from "./llm/index.js";
+import { ProviderOutputTruncatedError } from "./llm/http.js";
 import { defaultModelForProvider, logUsage } from "./usage-log.service.js";
 import { indexQuestion } from "./question-embedding.service.js";
 import { recordEvaluationHistory } from "./evaluation-history.service.js";
@@ -47,6 +48,28 @@ const normalizeOptionalText = (value: unknown) => {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const generateWithTruncationRetry = async (
+  llm: ReturnType<typeof createLLMService>,
+  request: LLMGenerateRequest
+) => {
+  try {
+    return await llm.generate({
+      ...request,
+      options: { ...request.options, reasoningEffort: "low" }
+    });
+  } catch (error) {
+    if (!(error instanceof ProviderOutputTruncatedError)) throw error;
+    return llm.generate({
+      ...request,
+      options: {
+        ...request.options,
+        maxTokens: Math.max(request.options?.maxTokens ?? 0, 900),
+        reasoningEffort: "low"
+      }
+    });
+  }
 };
 
 const normalizeDifficulty = (difficulty: unknown) => {
@@ -330,10 +353,10 @@ export const createTurn = async (
 
   try {
     const [genResult, evalResult] = await Promise.all([
-      llm.generate({
+      generateWithTruncationRetry(llm, {
         messages: buildNextQuestionMessages(session, session.turns, answer),
         options: {
-          maxTokens: 300
+          maxTokens: 500
         }
       }),
       evaluateAnswer({
@@ -430,13 +453,13 @@ export const startSessionStream = async (userId: string, sessionId: string) => {
       { role: "system", content: buildInterviewerSystemPrompt(session) },
       { role: "user", content: "Begin the interview with the first question." }
     ],
-    options: { maxTokens: 200 }
+    options: { maxTokens: 400 }
   };
 
   // Gemini's streaming endpoint can terminate after a partial candidate. Use
   // the complete-response endpoint so only a complete question is persisted.
   async function* questionStream() {
-    const result = await llm.generate(questionRequest);
+    const result = await generateWithTruncationRetry(llm, questionRequest);
     if (result.content) yield result.content;
   }
 
@@ -570,7 +593,7 @@ export const createTurnStream = async (
   const questionRequest = {
     messages: buildNextQuestionMessages(session, session.turns, answer, reviewFocus),
     options: {
-      maxTokens: 300
+      maxTokens: 500
     }
   };
 
@@ -578,7 +601,7 @@ export const createTurnStream = async (
     const startedAt = Date.now();
 
     try {
-      const result = await llm.generate(questionRequest);
+      const result = await generateWithTruncationRetry(llm, questionRequest);
       if (result.content) {
         yield result.content;
       }
