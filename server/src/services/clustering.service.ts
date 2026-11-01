@@ -46,39 +46,25 @@ const parseVector = (value: string): number[] | null => {
   }
 };
 
-const labelStopWords = new Set([
-  "a", "an", "and", "at", "by", "or", "but", "in", "on", "to", "is", "its", "not",
-  "about", "after", "answer", "approach", "between", "build", "can", "could", "design", "describe", "does", "explain", "for", "from", "have", "how", "into", "interview", "need", "question", "should", "that", "the", "their", "this", "use", "what", "when", "with", "would", "you", "your"
-]);
+const clusterLabelRules: Array<[string, RegExp]> = [
+  ["Concurrency & parallelism", /concurren|parallel|multi.?thread|worker pool|thread.?safe|race condition|deadlock|synchroni[sz]|lock contention/i],
+  ["Performance optimization", /performance|optim|profil|hot path|latency|throughput|bottleneck|garbage collect|memory allocation/i],
+  ["Data aggregation & processing", /aggregat|merge results|map.?reduce|data pipeline|batch process|stream process/i],
+  ["Rate limiting & API reliability", /rate.?limit|throttl|token bucket|leaky bucket|backpressure|api gateway|retry|circuit breaker/i],
+  ["Distributed systems & consistency", /distribut|eventual consist|replica|reconcil|partition|consistency model/i],
+  ["Databases & transactions", /database|sql|transaction|isolation|indexing|query plan|write path/i],
+  ["Caching & Redis", /cach|redis|invalidation|eviction/i],
+  ["Algorithms & complexity", /algorithm|time complexity|space complexity|big.?o|binary search|graph traversal|dynamic programming/i],
+  ["Scalability & system design", /scalab|system design|load balanc|high.?availability|fault toleran|capacity planning/i],
+  ["Communication & leadership", /communicat|conflict|stakeholder|leadership|ownership|feedback/i]
+];
 
-const toTitleCase = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
-
-// Strip trailing stop words (e.g. "Consistency And" → "Consistency")
-const trimTrailingStopWords = (label: string): string => {
-  const words = label.split(" ");
-  while (words.length > 1 && labelStopWords.has(words[words.length - 1]!.toLowerCase())) {
-    words.pop();
-  }
-  return words.join(" ");
-};
-
-// A label must not rely on a remote LLM: an unavailable API key should not
-// hide a locally detected conceptual gap.
+// Semantic vectors determine membership; labels come from a small, readable
+// concept vocabulary instead of arbitrary repeated words in question text.
 const makeClusterLabel = (questions: QuestionEvidence[]) => {
-  const phraseCounts = new Map<string, number>();
-  const wordCounts = new Map<string, number>();
-  for (const question of questions) {
-    const useful = (question.prompt.toLowerCase().match(/[a-z][a-z0-9-]{2,}/g) ?? []).filter((word) => !labelStopWords.has(word));
-    for (const word of new Set(useful)) wordCounts.set(word, (wordCounts.get(word) ?? 0) + 1);
-    for (let i = 0; i < useful.length - 1; i += 1) {
-      const phrase = `${useful[i]} ${useful[i + 1]}`;
-      phraseCounts.set(phrase, (phraseCounts.get(phrase) ?? 0) + 1);
-    }
-  }
-  const bestPhrase = [...phraseCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
-  if (bestPhrase && bestPhrase[1] >= 2) return toTitleCase(trimTrailingStopWords(bestPhrase[0]));
-  const words = [...wordCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 2).map(([word]) => word);
-  return words.length ? toTitleCase(trimTrailingStopWords(words.join(" "))) : toTitleCase(`${questions[0].topic} concepts`);
+  const prompts = questions.map((question) => question.prompt).join("\n");
+  return clusterLabelRules.find(([, pattern]) => pattern.test(prompts))?.[0]
+    ?? `${questions[0]?.topic || "Interview"} concepts`;
 };
 
 export const findConnectedClusters = (questions: QuestionEvidence[]) => {
@@ -123,6 +109,21 @@ export async function refreshUserClusterInsights(userId: string) {
     where: { userId, questionId: { not: null }, score: { not: null } },
     select: { questionId: true, sessionId: true, score: true, question: { select: { prompt: true, topic: true } } }
   });
+  const unlinkedPrompts = [...new Set(evalRuns
+    .filter((run) => !run.sessionId && run.question)
+    .map((run) => run.question!.prompt))];
+  const linkedTurns = unlinkedPrompts.length
+    ? await prisma.turn.findMany({
+        where: { role: "ASSISTANT", content: { in: unlinkedPrompts }, session: { userId } },
+        select: { content: true, sessionId: true }
+      })
+    : [];
+  const sessionsByPrompt = new Map<string, Set<string>>();
+  for (const turn of linkedTurns) {
+    const sessions = sessionsByPrompt.get(turn.content) ?? new Set<string>();
+    sessions.add(turn.sessionId);
+    sessionsByPrompt.set(turn.content, sessions);
+  }
   const questionIds = [...new Set(evalRuns.map((run) => run.questionId!).filter(Boolean))];
   if (questionIds.length < MIN_CLUSTER_SIZE) {
     await prisma.userClusterInsight.deleteMany({ where: { userId } });
@@ -140,6 +141,7 @@ export async function refreshUserClusterInsights(userId: string) {
     item.total += run.score!;
     item.count += 1;
     if (run.sessionId) item.sessionIds.add(run.sessionId);
+    else for (const sessionId of sessionsByPrompt.get(run.question.prompt) ?? []) item.sessionIds.add(sessionId);
     evidence.set(run.questionId, item);
   }
   const lowScoring = [...evidence.values()]

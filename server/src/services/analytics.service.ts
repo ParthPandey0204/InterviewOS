@@ -136,8 +136,16 @@ export const getAnalytics = async (userId: string) => {
   const clusterInsights = await prisma.userClusterInsight.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
-    select: { clusterLabel: true, averageScore: true, questionCount: true, sessionCount: true }
+    select: { clusterLabel: true, averageScore: true, questionCount: true, sessionCount: true, questionIds: true }
   });
+  const clusterQuestionIds = [...new Set(clusterInsights.flatMap((insight) => insight.questionIds))];
+  const clusterQuestions = clusterQuestionIds.length
+    ? await prisma.questionBank.findMany({
+        where: { id: { in: clusterQuestionIds }, createdById: userId },
+        select: { id: true, prompt: true }
+      })
+    : [];
+  const promptByQuestionId = new Map(clusterQuestions.map((question) => [question.id, question.prompt]));
 
   const usageLogs = await prisma.usageLog.findMany({
     where: { userId },
@@ -170,7 +178,13 @@ export const getAnalytics = async (userId: string) => {
   return {
     topicAverages,
     sessionsOverTime: sessionsOverTimeFinal,
-    clusterInsights,
+    clusterInsights: clusterInsights.map((insight) => ({
+      clusterLabel: insight.clusterLabel,
+      averageScore: insight.averageScore,
+      questionCount: insight.questionCount,
+      sessionCount: insight.sessionCount,
+      exampleQuestions: insight.questionIds.map((questionId) => promptByQuestionId.get(questionId)).filter((prompt): prompt is string => Boolean(prompt)).slice(0, 3)
+    })),
     overview: {
       evaluatedAnswers: evaluations.length,
       completedSessions: sessions.filter((session) => session.status === SessionStatus.COMPLETED).length,

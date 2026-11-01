@@ -7,7 +7,7 @@ import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChar
 type AnalyticsData = {
   topicAverages: Array<{ topic: string; averageScore: number; attempts: number }>;
   sessionsOverTime: Array<{ date: string; score: number; mode: string }>;
-  clusterInsights: Array<{ clusterLabel: string; averageScore: number; questionCount: number; sessionCount: number }>;
+  clusterInsights: Array<{ clusterLabel: string; averageScore: number; questionCount: number; sessionCount: number; exampleQuestions: string[] }>;
   overview: {
     evaluatedAnswers: number;
     completedSessions: number;
@@ -59,13 +59,13 @@ export const Analytics: React.FC = () => {
               <section className="insights-container semantic-insights">
                 <div className="semantic-insights-header">
                   <div>
-                    <p className="section-kicker">Semantic weak topics</p>
-                    <h2>Conceptual Knowledge Gaps</h2>
+                    <p className="section-kicker">Recurring weak spots</p>
+                    <h2>Concepts to practice</h2>
                   </div>
-                  <span className="semantic-badge">Embedding Clustering</span>
+                  <span className="semantic-badge">Grouped by question meaning</span>
                 </div>
                 <p className="semantic-description">
-                  Our transformer model analyzes semantic vector proximity between interview questions you struggled with (&lt;60%), grouping underlying conceptual misunderstandings even when asked across completely different modes or companies.
+                  Groups contain multiple questions about similar ideas where your average score was below 60%. Open the examples to see why they were grouped; these are practice suggestions, not diagnoses.
                 </p>
                 {data.clusterInsights.length ? (
                   <div className="cluster-grid">
@@ -78,8 +78,16 @@ export const Analytics: React.FC = () => {
                           </span>
                         </div>
                         <p className="cluster-card-body">
-                          Identified across <strong>{insight.questionCount} {insight.questionCount === 1 ? "question" : "questions"}</strong> in <strong>{insight.sessionCount} {insight.sessionCount === 1 ? "session" : "sessions"}</strong>.
+                          <strong>{insight.questionCount} related {insight.questionCount === 1 ? "question" : "questions"}</strong>
+                          {insight.sessionCount > 0 ? <> across <strong>{insight.sessionCount} {insight.sessionCount === 1 ? "session" : "sessions"}</strong>.</> : ". Session history is unavailable for these older evaluations."}
                         </p>
+                        {insight.exampleQuestions.length > 0 && <div className="cluster-examples">
+                          <p className="cluster-example-preview">“{insight.exampleQuestions[0]}”</p>
+                          {insight.exampleQuestions.length > 1 && <details>
+                            <summary>View all {insight.exampleQuestions.length} related questions</summary>
+                          <ul>{insight.exampleQuestions.map((question) => <li key={question}>{question}</li>)}</ul>
+                          </details>}
+                        </div>}
                         <div className="cluster-card-footer">
                           <span>Targeted for spaced review in upcoming sessions</span>
                         </div>
