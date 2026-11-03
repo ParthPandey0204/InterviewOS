@@ -16,7 +16,6 @@ const GradCap = () => (
 export const Login: React.FC = () => {
   const { login, user } = useAuth();
   const navigate = useNavigate();
-
   const [email, setEmail]               = useState("");
   const [password, setPassword]         = useState("");
   const [showPassword, setShowPassword] = useState(false);

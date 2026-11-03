@@ -33,7 +33,7 @@ export const Register: React.FC = () => {
     setIsSubmitting(true);
     try {
       await register(email, password, name);
-      navigate("/", { replace: true });
+      navigate("/login", { replace: true });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to create account. Please try again.");
     } finally {

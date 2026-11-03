@@ -13,10 +13,8 @@ const getCookieOptions = (): CookieOptions => ({
 
 export const register = asyncHandler(async (request: Request, response: Response) => {
   const result = await authService.register(request.body);
-  response.cookie(COOKIE_NAME, result.tokens.refreshToken, getCookieOptions());
   response.status(201).json({
-    user: result.user,
-    accessToken: result.tokens.accessToken
+    user: result.user
   });
 });
 

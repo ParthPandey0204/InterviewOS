@@ -99,8 +99,7 @@ export const register = async (input: RegisterInput) => {
   });
 
   return {
-    user: publicUser(user),
-    tokens: await issueTokenPair(user)
+    user: publicUser(user)
   };
 };
 

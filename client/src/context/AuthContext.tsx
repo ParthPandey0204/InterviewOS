@@ -59,12 +59,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const register = async (email: string, password: string, name?: string) => {
-    const res = await apiRequest<{ user: User; accessToken: string }>("/api/auth/register", {
+    await apiRequest<{ user: User }>("/api/auth/register", {
       method: "POST",
       body: JSON.stringify({ email, password, name })
     });
-    setUser(res.user);
-    updateToken(res.accessToken);
   };
 
   const logout = async () => {
