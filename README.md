@@ -35,13 +35,35 @@ The evaluator has versioned baseline and calibrated prompts. Its benchmark harne
 
 ## Screenshots and demo
 
-Screenshots and a 90-second demo video are not yet recorded. For the demo, show a company-targeted session, a weak answer's review chart and improved answer, and Analytics with weak-topic clustering and UsageLog metrics.
+The two demos highlight the complete InterviewOS experience and its analysis tools:
+
+- [Demo 1: End-to-end workflow (MP4)](docs/demo.mp4) demonstrates the flow from sign-in through question generation and the interview experience. It uses an easy technical question to keep the focus on how the product works.
+- [Demo 2: Interview analysis (MP4)](docs/demo-2.mp4) demonstrates InterviewOS's analysis features after a hard technical interview session.
+
+### Product screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/dashboard.png" alt="InterviewOS dashboard" width="420"><br><strong>Dashboard</strong></td>
+    <td align="center"><img src="docs/screenshots/session-setup.png" alt="Interview session setup" width="420"><br><strong>Session setup</strong></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/interview-question.png" alt="Interview question and answer form" width="420"><br><strong>Interview question</strong></td>
+    <td align="center"><img src="docs/screenshots/answer-review.png" alt="AI answer feedback and rubric scores" width="420"><br><strong>Answer feedback and rubric scores</strong></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/analytics.png" alt="InterviewOS analytics dashboard" width="420"><br><strong>Analytics</strong></td>
+    <td align="center"><img src="docs/screenshots/stronger-answer.png" alt="AI feedback with a stronger answer example" width="420"><br><strong>Stronger answer guidance</strong></td>
+  </tr>
+</table>
+
+The answer review screenshots show both the rubric scores and a stronger answer example to guide the next attempt.
 
 **Live app:** [https://interview-os-client.vercel.app/](https://interview-os-client.vercel.app/)
 
-## Real-user study
+## Planned user study
 
-No real-user study has been run. After deployment, invite consenting participants and publish only aggregate participation, completed-session count, and average-score data.
+No real-user study has been run yet. After deployment, the planned study is to invite consenting participants and publish only aggregate participation, completed-session count, and average-score data.
 
 Monorepo for InterviewOS:
 
@@ -69,6 +91,8 @@ DIRECT_URL="postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler
 ```
 
 Use Supabase Session Mode pooler locally if direct IPv6 is unavailable.
+
+Configure at least one LLM provider key in `server/.env` before starting the app. The default provider is Gemini, so set `GEMINI_API_KEY`; you can also set `GROQ_API_KEY` to enable Groq fallback, or set `LLM_PROVIDER=groq` to use Groq as the default.
 
 Then generate Prisma Client:
 
@@ -127,11 +151,13 @@ Then update Render `CLIENT_ORIGIN` and `CORS_ORIGINS` to the final Vercel URL.
 
 ## LLM Scoring Prompt Reliability & Versioning
 
-InterviewOS includes an automated evaluation harness and versioned prompt architecture for measuring—not assuming—LLM grading reliability.
+InterviewOS scores answers on correctness, clarity, and depth. Its evaluator has two versioned prompts: a zero-shot baseline (`v1`) and a calibrated prompt (`v2`) with explicit 0–5 rubric definitions and three few-shot examples. The analysis flow is demonstrated in [Demo 2](docs/demo-2.mp4), which follows a hard technical interview session.
 
 ![Scoring benchmark status](docs/scoring-benchmark-status.svg)
 
-Run `npm run eval:harness -- --runs=10 --persist` with valid provider credentials to generate reproducible figures. The benchmark persists only real LLM responses under a dedicated non-user account; omit `--persist` for a dry run.
+The benchmark harness compares both prompt versions across 30 DSA, system design, and behavioral answers, repeating each evaluation and reporting mean per-answer run-to-run variance. Reliability results are not claimed until a benchmark run is recorded with its model, provider, date, run count, failures, and variance output.
+
+Run `npm run eval:harness -- --runs=10 --persist` with valid provider credentials to persist actual LLM responses under a dedicated non-user account. Omit `--persist` for a dry run.
 
 For the prompt definitions and methodology, see [SCORING_PROMPT_VERSIONING.md](docs/SCORING_PROMPT_VERSIONING.md).
 
