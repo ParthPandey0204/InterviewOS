@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { apiRequest, setAccessToken } from "../api/client";
+import { apiRequest, setAccessToken, subscribeToAccessToken } from "../api/client";
 
 export type User = {
   id: string;
@@ -29,6 +29,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    const unsubscribeFromAccessToken = subscribeToAccessToken(setTokenState);
+
     // Silent Refresh on initial load using httpOnly cookie
     async function restoreSession() {
       try {
@@ -47,6 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     restoreSession();
+    return unsubscribeFromAccessToken;
   }, []);
 
   const login = async (email: string, password: string) => {

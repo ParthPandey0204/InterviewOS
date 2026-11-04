@@ -6,7 +6,7 @@ import { evaluateAnswer, type AnswerEvaluation } from "./answer-evaluation.servi
 import { buildInterviewerSystemPrompt, buildNextQuestionMessages } from "./interview-prompts.service.js";
 import { createLLMService, type LLMGenerateRequest, type LLMGenerateResult, type LLMProvider } from "./llm/index.js";
 import { ProviderOutputTruncatedError } from "./llm/http.js";
-import { defaultModelForProvider, logUsage } from "./usage-log.service.js";
+import { defaultModelForProvider, logUsageBestEffort } from "./usage-log.service.js";
 import { indexQuestion } from "./question-embedding.service.js";
 import { recordEvaluationHistory } from "./evaluation-history.service.js";
 import { selectConceptualReviewFocus } from "./conceptual-review.service.js";
@@ -343,7 +343,8 @@ export const createTurn = async (
   const provider = normalizeProvider(input.provider);
   const session = await getActiveSessionForTurn(userId, sessionId);
   const llm = createLLMService(provider);
-  const startedAt = Date.now();
+  const generationStartedAt = Date.now();
+  let generationLatencyMs = 0;
 
   const previousAssistantTurn = [...session.turns].reverse().find(t => t.role === TurnRole.ASSISTANT);
   const previousQuestion = previousAssistantTurn?.content ?? "Please introduce yourself and explain your background.";
@@ -352,13 +353,16 @@ export const createTurn = async (
   let evaluationResult: { provider: LLMProvider; model: string; scores: AnswerEvaluation } | null = null;
 
   try {
+    const generationPromise = generateWithTruncationRetry(llm, {
+      messages: buildNextQuestionMessages(session, session.turns, answer),
+      options: {
+        maxTokens: 500
+      }
+    }).finally(() => {
+      generationLatencyMs = Date.now() - generationStartedAt;
+    });
     const [genResult, evalResult] = await Promise.all([
-      generateWithTruncationRetry(llm, {
-        messages: buildNextQuestionMessages(session, session.turns, answer),
-        options: {
-          maxTokens: 500
-        }
-      }),
+      generationPromise,
       evaluateAnswer({
         question: previousQuestion,
         answer,
@@ -374,25 +378,23 @@ export const createTurn = async (
     llmResult = genResult;
     evaluationResult = evalResult;
     
-    const latencyMs = Date.now() - startedAt;
-
-    await logUsage({
+    logUsageBestEffort({
       userId,
       sessionId,
       provider: llmResult.provider,
       model: llmResult.model,
       operation: "turn.generate",
-      latencyMs,
+      latencyMs: generationLatencyMs,
       usage: llmResult.usage,
       metadata: { status: "success" }
     });
   } catch (error) {
-    await logUsage({
+    logUsageBestEffort({
       userId,
       sessionId,
       provider,
       operation: "turn.generate",
-      latencyMs: Date.now() - startedAt,
+      latencyMs: generationLatencyMs,
       metadata: {
         status: "error",
         error: error instanceof Error ? error.message : "Unknown LLM error"
@@ -448,6 +450,7 @@ export const startSessionStream = async (userId: string, sessionId: string) => {
   }
 
   const llm = createLLMService(provider);
+  let generationResult: LLMGenerateResult | null = null;
   const questionRequest: LLMGenerateRequest = {
     messages: [
       { role: "system", content: buildInterviewerSystemPrompt(session) },
@@ -459,8 +462,36 @@ export const startSessionStream = async (userId: string, sessionId: string) => {
   // Gemini's streaming endpoint can terminate after a partial candidate. Use
   // the complete-response endpoint so only a complete question is persisted.
   async function* questionStream() {
-    const result = await generateWithTruncationRetry(llm, questionRequest);
-    if (result.content) yield result.content;
+    const startedAt = Date.now();
+    try {
+      const result = await generateWithTruncationRetry(llm, questionRequest);
+      generationResult = result;
+      logUsageBestEffort({
+        userId,
+        sessionId,
+        provider: result.provider,
+        model: result.model,
+        operation: "session.start.stream",
+        latencyMs: Date.now() - startedAt,
+        usage: result.usage,
+        metadata: { status: "success" }
+      });
+      if (result.content) yield result.content;
+    } catch (error) {
+      logUsageBestEffort({
+        userId,
+        sessionId,
+        provider,
+        model,
+        operation: "session.start.stream",
+        latencyMs: Date.now() - startedAt,
+        metadata: {
+          status: "error",
+          error: error instanceof Error ? error.message : "Unknown LLM error"
+        }
+      });
+      throw error;
+    }
   }
 
   return {
@@ -477,7 +508,16 @@ export const startSessionStream = async (userId: string, sessionId: string) => {
         });
         if (existingTurn) return existingTurn;
         return tx.turn.create({
-          data: { sessionId, role: TurnRole.ASSISTANT, content: question, position: 0, metadata: { provider, model } },
+          data: {
+            sessionId,
+            role: TurnRole.ASSISTANT,
+            content: question,
+            position: 0,
+            metadata: {
+              provider: generationResult?.provider ?? provider,
+              model: generationResult?.model ?? model
+            }
+          },
           select: turnSelect
         });
       });
@@ -597,26 +637,29 @@ export const createTurnStream = async (
     }
   };
 
+  let generationResult: LLMGenerateResult | null = null;
+
   async function* stream() {
     const startedAt = Date.now();
 
     try {
       const result = await generateWithTruncationRetry(llm, questionRequest);
+      generationResult = result;
+      logUsageBestEffort({
+        userId,
+        sessionId,
+        provider: result.provider,
+        model: result.model,
+        operation: "turn.generate.stream",
+        latencyMs: Date.now() - startedAt,
+        usage: result.usage,
+        metadata: { status: "success" }
+      });
       if (result.content) {
         yield result.content;
       }
-
-      await logUsage({
-        userId,
-        sessionId,
-        provider,
-        model,
-        operation: "turn.generate.stream",
-        latencyMs: Date.now() - startedAt,
-        metadata: { status: "success" }
-      });
     } catch (error) {
-      await logUsage({
+      logUsageBestEffort({
         userId,
         sessionId,
         provider,
@@ -655,8 +698,9 @@ export const createTurnStream = async (
         expectedLatestPosition: session.turns.at(-1)?.position ?? -1,
         answer,
         nextQuestion,
-        provider,
-        model,
+        provider: generationResult?.provider ?? provider,
+        model: generationResult?.model ?? model,
+        usage: generationResult?.usage,
         evaluation: evaluationResult?.scores
       });
 

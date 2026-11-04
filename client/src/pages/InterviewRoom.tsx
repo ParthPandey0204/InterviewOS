@@ -1,14 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { apiRequest, getAccessToken } from "../api/client";
+import { apiFetch, apiRequest } from "../api/client";
 import { ScoreCard, type EvaluationScores } from "../components/ScoreCard";
 import { AiResponseText } from "../components/AiResponseText";
 
 type Turn = { id: string; role: "USER" | "ASSISTANT"; content: string; metadata?: { evaluation?: EvaluationScores } };
 type Session = { id: string; mode: string; difficulty: string; targetCompany: string | null; turns: Turn[] };
 type Review = { question: string; answer: string; evaluation: EvaluationScores | null; evaluationError?: string };
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
-
 const parseEvents = (buffer: string) => {
   const events = buffer.split(/\r?\n\r?\n/);
   return { complete: events.slice(0, -1), remainder: events.at(-1) ?? "" };
@@ -17,7 +15,7 @@ const parseEvents = (buffer: string) => {
 const streamRequest = async (endpoint: string, options: RequestInit) => {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 140_000);
-  try { return await fetch(`${API_BASE}${endpoint}`, { ...options, signal: controller.signal }); }
+  try { return await apiFetch(endpoint, { ...options, signal: controller.signal }); }
   catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw new Error("The AI service took too long to respond. Please try again.");
     throw error;
@@ -52,7 +50,7 @@ export const InterviewRoom: React.FC = () => {
   useEffect(() => {
     void (async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/sessions/${id}`, { headers: { Authorization: `Bearer ${getAccessToken()}` }, credentials: "include" });
+        const response = await apiFetch(`/api/sessions/${id}`);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error?.message || "Unable to load session");
         setSession(data.session);
@@ -65,7 +63,7 @@ export const InterviewRoom: React.FC = () => {
     const startInterview = async () => {
       setStartingQuestion(true); setStreamingQuestion(""); setError(null);
       try {
-        const response = await streamRequest(`/api/sessions/${id}/start/stream`, { method: "POST", headers: { Authorization: `Bearer ${getAccessToken()}` }, credentials: "include" });
+        const response = await streamRequest(`/api/sessions/${id}/start/stream`, { method: "POST" });
         if (!response.ok || !response.body) throw new Error("Unable to start the interview.");
         const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = "";
         const consume = (message: string) => {
@@ -183,7 +181,7 @@ export const InterviewRoom: React.FC = () => {
     const answerToSubmit = answer.trim(); const questionToReview = latestQuestion;
     setError(null); setAnswer(""); setIsStreaming(true); setStreamingQuestion("");
     try {
-      const response = await streamRequest(`/api/sessions/${id}/turns/stream`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${getAccessToken()}` }, credentials: "include", body: JSON.stringify({ answer: answerToSubmit }) });
+      const response = await streamRequest(`/api/sessions/${id}/turns/stream`, { method: "POST", body: JSON.stringify({ answer: answerToSubmit }) });
       if (!response.ok || !response.body) { const data = await response.json().catch(() => ({})); throw new Error(data.error?.message || "Unable to submit answer"); }
       const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ""; let completed = false; let evaluationError: string | undefined;
       const handleEvent = (message: string) => {

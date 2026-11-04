@@ -65,3 +65,9 @@ export const logUsage = async (input: UsageInput) => {
     }
   });
 };
+
+export const logUsageBestEffort = (input: UsageInput) => {
+  void logUsage(input).catch((error) => {
+    console.error("Unable to record LLM usage", error);
+  });
+};

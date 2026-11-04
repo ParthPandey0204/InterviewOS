@@ -83,15 +83,23 @@ const usageFromPayload = (payload: unknown) => {
     return undefined;
   }
 
+  const hasCandidateTokens = typeof usage.candidatesTokenCount === "number";
+  const hasThinkingTokens = typeof usage.thoughtsTokenCount === "number";
+  const candidateTokens = hasCandidateTokens ? usage.candidatesTokenCount as number : 0;
+  const thinkingTokens = hasThinkingTokens ? usage.thoughtsTokenCount as number : 0;
+  const promptTokens = typeof usage.promptTokenCount === "number" ? usage.promptTokenCount : undefined;
+  const completionTokens = candidateTokens + thinkingTokens;
+  const totalTokens = typeof usage.totalTokenCount === "number"
+    ? usage.totalTokenCount
+    : promptTokens === undefined
+      ? undefined
+      : promptTokens + completionTokens;
+
   return {
-    promptTokens:
-      typeof usage.promptTokenCount === "number" ? usage.promptTokenCount : undefined,
-    completionTokens:
-      typeof usage.candidatesTokenCount === "number"
-        ? usage.candidatesTokenCount
-        : undefined,
-    totalTokens:
-      typeof usage.totalTokenCount === "number" ? usage.totalTokenCount : undefined
+    promptTokens,
+    // Gemini reports thinking tokens separately; they are billed as output tokens.
+    completionTokens: hasCandidateTokens || hasThinkingTokens ? completionTokens : undefined,
+    totalTokens
   };
 };
 
