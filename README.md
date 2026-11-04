@@ -37,8 +37,8 @@ The evaluator has versioned baseline and calibrated prompts. Its benchmark harne
 
 The two demos highlight the complete InterviewOS experience and its analysis tools:
 
-- [Demo 1: End-to-end workflow (MP4)](docs/demo.mp4) demonstrates the flow from sign-in through question generation and the interview experience. It uses an easy technical question to keep the focus on how the product works.
-- [Demo 2: Interview analysis (MP4)](docs/demo-2.mp4) demonstrates InterviewOS's analysis features after a hard technical interview session.
+- [Demo 1: End-to-end workflow (MP4)](https://res.cloudinary.com/bfuyyun2/video/upload/v1793765253/Demo_2_2.mp4) demonstrates the flow from sign-in through question generation and the interview experience. It uses an easy technical question to keep the focus on how the product works.
+- [Demo 2: Interview analysis (MP4)](https://res.cloudinary.com/bfuyyun2/video/upload/v1793765233/Demo_2.mp4) demonstrates InterviewOS's analysis features after a hard technical interview session.
 
 ### Product screenshots
 
@@ -151,7 +151,7 @@ Then update Render `CLIENT_ORIGIN` and `CORS_ORIGINS` to the final Vercel URL.
 
 ## LLM Scoring Prompt Reliability & Versioning
 
-InterviewOS scores answers on correctness, clarity, and depth. Its evaluator has two versioned prompts: a zero-shot baseline (`v1`) and a calibrated prompt (`v2`) with explicit 0–5 rubric definitions and three few-shot examples. The analysis flow is demonstrated in [Demo 2](docs/demo-2.mp4), which follows a hard technical interview session.
+InterviewOS scores answers on correctness, clarity, and depth. Its evaluator has two versioned prompts: a zero-shot baseline (`v1`) and a calibrated prompt (`v2`) with explicit 0–5 rubric definitions and three few-shot examples. The analysis flow is demonstrated in [Demo 2](https://res.cloudinary.com/bfuyyun2/video/upload/v1793765233/Demo_2.mp4), which follows a hard technical interview session.
 
 ![Scoring benchmark status](docs/scoring-benchmark-status.svg)
 
